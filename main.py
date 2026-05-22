@@ -9,7 +9,7 @@ from telegram.constants import ParseMode
 TOKEN = os.getenv('BOT_TOKEN')
 XAI_API_KEY = os.getenv('XAI_API_KEY')
 
-# Data
+# ====================== DATA ======================
 points = {}
 referrals = {}
 current_raid = None
@@ -58,7 +58,7 @@ async def get_grok_response(query: str, username: str):
         )
         return r.json()['choices'][0]['message']['content']
     except:
-        return "🔥 Flik is cooking... Try again!"
+        return "🔥 Flik is cooking... Try again soon!"
 
 # ====================== HANDLERS ======================
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -87,7 +87,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 pass
             return
 
-    # === MAIN @FLIK AI TRIGGER ===
+    # === @FLIK AI TRIGGER ===
     if "@flik" in text or "@Flik" in original_text:
         query = original_text.replace("@Flik", "").replace("@flik", "").strip()
         response = await get_grok_response(query, user.username or "user")
@@ -166,7 +166,7 @@ def main():
     app.add_handler(CommandHandler("raidstatus", raidstatus))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — ULTIMATE @Flik AI MODE")
+    print("🤖 FLIK BOT IS LIVE 🔥 — FULL ULTIMATE AI MODE")
     app.run_polling()
 
 if __name__ == '__main__':
