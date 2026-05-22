@@ -3,22 +3,26 @@ import json
 import requests
 from datetime import datetime, date
 from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes, ChatMemberHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ChatMemberHandler
 from telegram.constants import ParseMode
 
 TOKEN = os.getenv('BOT_TOKEN')
 XAI_API_KEY = os.getenv('XAI_API_KEY')
+
+DAILY_GROK_LIMIT = 15
 
 # Data
 points = {}
 energy_cooldown = {}
 daily_streak = {}
 last_login_date = {}
+grok_usage = {}
 ADMINS = ["FLICKABICFLIK"]
 
 def load_data():
-    global points, daily_streak, last_login_date
-    for file, var in [('points.json', 'points'), ('daily_streak.json', 'daily_streak'), ('last_login_date.json', 'last_login_date')]:
+    global points, daily_streak, last_login_date, grok_usage
+    for file, var in [('points.json', 'points'), ('daily_streak.json', 'daily_streak'),
+                      ('last_login_date.json', 'last_login_date'), ('grok_usage.json', 'grok_usage')]:
         try:
             with open(file, 'r') as f:
                 globals()[var] = json.load(f)
@@ -26,15 +30,36 @@ def load_data():
             globals()[var] = {}
 
 def save_data():
-    for file, data in [('points.json', points), ('daily_streak.json', daily_streak), ('last_login_date.json', last_login_date)]:
+    for file, data in [('points.json', points), ('daily_streak.json', daily_streak),
+                       ('last_login_date.json', last_login_date), ('grok_usage.json', grok_usage)]:
         with open(file, 'w') as f:
             json.dump(data, f, indent=2)
 
 load_data()
 
+def is_admin(user):
+    return user and user.username and user.username in ADMINS
+
 async def get_grok_response(query: str, username: str):
+    # Admins have unlimited usage
+    if is_admin(type('obj', (object,), {'username': username})()):
+        pass
+    else:
+        today = str(date.today())
+        if username not in grok_usage:
+            grok_usage[username] = {}
+        if today not in grok_usage[username]:
+            grok_usage[username][today] = 0
+
+        if grok_usage[username][today] >= DAILY_GROK_LIMIT:
+            return f"⛔ Daily limit reached ({DAILY_GROK_LIMIT} messages).\nAdmins have unlimited access."
+
+        grok_usage[username][today] += 1
+        save_data()
+
     if not XAI_API_KEY:
         return "🔥 Flik is here! Ask me anything."
+
     try:
         r = requests.post(
             "https://api.x.ai/v1/chat/completions",
@@ -81,17 +106,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         save_data()
         await update.message.reply_text(f"🌟 **Daily Login!** +{reward} points | Streak: {streak} days")
 
-    # === @FLIK MAIN INTERACTION ===
+    # === @FLIK AI ===
     if "@flik" in text or "@Flik" in original_text:
-        query = original_text.replace("@Flik", "").replace("@flik", "").strip().lower()
-
-        if "myreferral" in query or "referral" in query:
-            bot_info = await context.bot.get_me()
-            link = f"https://t.me/{bot_info.username}?start={username}"
-            await update.message.reply_text(f"🔥 <b>Your Referral Link</b>\n\n🔗 {link}", parse_mode=ParseMode.HTML)
-            return
-
-        # Normal AI query
+        query = original_text.replace("@Flik", "").replace("@flik", "").strip()
         if query:
             response = await get_grok_response(query, username)
             await update.message.reply_text(response)
@@ -118,12 +135,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "website" in text or "site" in text:
         await update.message.reply_text("🔥 Official Website: https://flickabic.com")
 
+# Commands (always available)
+async def my_referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user.username
+    if not user:
+        await update.message.reply_text("❌ Set a Telegram username first!")
+        return
+    bot_info = await context.bot.get_me()
+    link = f"https://t.me/{bot_info.username}?start={user}"
+    await update.message.reply_text(f"🔥 <b>Your Referral Link</b>\n\n🔗 {link}", parse_mode=ParseMode.HTML)
+
+async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    sorted_points = sorted(points.items(), key=lambda x: x[1], reverse=True)
+    msg = "🏆 <b>LEADERBOARD</b>\n\n"
+    for i, (u, p) in enumerate(sorted_points[:10], 1):
+        msg += f"{i}. @{u} — {p} points\n"
+    await update.message.reply_text(msg or "No points yet — start grinding!")
+
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(ChatMemberHandler(welcome, ChatMemberHandler.MY_CHAT_MEMBER))
+    app.add_handler(CommandHandler("myreferral", my_referral))
+    app.add_handler(CommandHandler("leaderboard", show_leaderboard))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — FULL @FLIK AI MODE")
+    print("🤖 FLIK BOT IS LIVE 🔥 — @Flik AI with Admin Unlimited")
     app.run_polling()
 
 if __name__ == '__main__':
