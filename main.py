@@ -15,9 +15,7 @@ RAID_DURATION_MINUTES = 15
 RAID_JOIN_POINTS = 10
 RAID_END_POINTS = 20
 
-# ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 ADMINS = ["FLICKABICFLIK", "FLICKABIC", "flickabic"]
-# ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 
 # Data
 points = {}
@@ -71,9 +69,12 @@ def save_data():
 load_data()
 
 def is_admin(user):
-    return user and user.username and user.username in ADMINS
+    if not user or not user.username:
+        return False
+    username_lower = user.username.lower()
+    return any(admin.lower() == username_lower for admin in ADMINS)
 
-# ANTI-SPAM (unchanged)
+# ANTI-SPAM
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or is_admin(update.message.from_user):
         return False
@@ -109,6 +110,7 @@ async def get_grok_response(query: str, username: str):
             return f"⛔ Daily @Flik limit reached ({DAILY_GROK_LIMIT} messages). Try again tomorrow!"
         grok_usage[username][today] += 1
         save_data()
+
     if not XAI_API_KEY:
         return "🔥 Flik is here! Ask me anything."
     try:
@@ -165,7 +167,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     weekly_activity[username] += 1
     save_data()
 
-    # Daily login (no points for admins)
+    # Daily login
     if username not in last_login_date or last_login_date[username] != today_str:
         last_login_date[username] = today_str
         streak = daily_streak.get(username, 0) + 1
@@ -178,7 +180,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(f"🌟 Daily login! Streak: {streak} (no points for admins)")
 
-    # @Flik AI — FIXED FOR POPUP @FLICKABICBot
+    # @Flik AI — supports both @flik and @FLICKABICBot popup
     bot_info = await context.bot.get_me()
     bot_mention = "@" + bot_info.username.lower()
     if bot_mention in original.lower() or "@flik" in text or "@Flik" in original:
@@ -233,7 +235,7 @@ async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE)
         msg += "No weekly activity yet.\n"
     await update.message.reply_text(msg)
 
-# Raid system (unchanged)
+# Raid system
 async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.message.from_user):
         await update.message.reply_text("Admin only 🔥")
@@ -317,7 +319,6 @@ async def my_referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
     link = f"https://t.me/{bot_info.username}?start={user}"
     await update.message.reply_text(f"🔥 **Your Referral Link**\n🔗 {link}")
 
-# Debug command
 async def myusername(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     await update.message.reply_text(f"Bot sees your username as: **@{user.username}**\nADMINS list: {ADMINS}")
@@ -341,7 +342,7 @@ def main():
     app.add_handler(CommandHandler("leaderboard", active_leaderboard))
     app.add_handler(CommandHandler("myusername", myusername))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — /myusername DEBUG ADDED")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — ADMIN CHECK FIXED")
     app.run_polling()
 
 if __name__ == '__main__':
