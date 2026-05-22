@@ -9,11 +9,12 @@ from telegram.constants import ParseMode
 TOKEN = os.getenv('BOT_TOKEN')
 XAI_API_KEY = os.getenv('XAI_API_KEY')
 
-# ====================== DATA ======================
+# Data
 points = {}
 referrals = {}
 current_raid = None
 message_timestamps = {}
+energy_cooldown = {}  # New: Cooldown tracker
 ADMINS = ["FLICKABICFLIK"]
 
 def load_data():
@@ -72,10 +73,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
     user = update.message.from_user
     original_text = update.message.text
+    now = datetime.now().timestamp()
 
     # Anti-spam
     if not is_admin(user):
-        now = datetime.now().timestamp()
         if user.username not in message_timestamps:
             message_timestamps[user.username] = []
         message_timestamps[user.username] = [t for t in message_timestamps[user.username] if now - t < 60]
@@ -94,12 +95,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(response)
         return
 
-    # Energy System
-    if any(word in text for word in ["flick", "flik", "moon", "fire", "send it", "light it", "bic"]):
-        if user.username:
-            points[user.username] = points.get(user.username, 0) + 1
-            save_data()
-            await update.message.reply_text("🔥 THAT'S THE ENERGY! $FLIK TO THE MOON")
+    # === ENERGY SYSTEM WITH 60-SECOND COOLDOWN ===
+    energy_words = ["flick", "flik", "moon", "fire", "send it", "light it", "bic"]
+    if any(word in text for word in energy_words):
+        username = user.username
+        if username:
+            last_energy = energy_cooldown.get(username, 0)
+            if now - last_energy > 60:  # 60 second cooldown
+                energy_cooldown[username] = now
+                points[username] = points.get(username, 0) + 1
+                save_data()
+                await update.message.reply_text("🔥 THAT'S THE ENERGY! $FLIK TO THE MOON")
+            else:
+                await update.message.reply_text("⏳ Energy on cooldown! Wait a bit before sending more hype.")
         return
 
     # Auto-replies
@@ -166,7 +174,7 @@ def main():
     app.add_handler(CommandHandler("raidstatus", raidstatus))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — FULL ULTIMATE AI MODE")
+    print("🤖 FLIK BOT IS LIVE 🔥 — FULL ULTIMATE AI MODE WITH COOLDOWN")
     app.run_polling()
 
 if __name__ == '__main__':
