@@ -134,7 +134,6 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-# ====================== SINGLE CALLBACK HANDLER (BUTTONS NOW WORK) ======================
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -158,7 +157,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         current_raid = {"participants": []}
         save_data()
         context.job_queue.run_once(auto_end_raid, RAID_DURATION_MINUTES * 60, chat_id=query.message.chat_id)
-        await query.edit_message_text("🚨 **RAID STARTED!**\n\nSend the tweet URL now.\n\nUse /joinraid to participate.")
+        await query.edit_message_text("🚨 **RAID STARTED!**\n\nSend the tweet URL now.\n\nType /joinraid to participate.")
 
     elif data == "leaderboard":
         await active_leaderboard(update, context)
@@ -193,7 +192,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     today_str = str(date.today())
 
-    # Activity tracking
     if username not in daily_activity:
         daily_activity[username] = {}
     daily_activity[username][today_str] = daily_activity[username].get(today_str, 0) + 1
@@ -202,7 +200,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     weekly_activity[username] += 1
     save_data()
 
-    # Daily login + streaks
     if username not in last_login_date or last_login_date[username] != today_str:
         last_login_date[username] = today_str
         streak = daily_streak.get(username, 0) + 1
@@ -215,19 +212,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(f"🌟 Daily login! Streak: {streak} (no points for admins)")
 
-    # @flik MAIN MENU (Raidar/Cherry Bot style)
+    # IMPROVED @flik MENU TRIGGER
     bot_info = await context.bot.get_me()
     bot_mention = "@" + bot_info.username.lower()
     if bot_mention in original.lower() or "@flik" in text or "@Flik" in original:
         query_text = original.replace(bot_mention, "").replace("@Flik", "").replace("@flik", "").strip()
-        if not query_text:
+        if query_text == "" or query_text.lower() in ["start", "menu", "start new raid", "raid"]:
             await show_main_menu(update)
             return
+        # otherwise normal Grok AI
         response = await get_grok_response(query_text, username)
         await update.message.reply_text(response)
         return
 
-    # Energy system (hourly cap, admins 0 points)
+    # Energy system
     if any(w in text for w in ["flick", "flik", "moon", "fire", "send it", "light it", "bic"]):
         now = datetime.now().timestamp()
         last = energy_last_time.get(username, 0)
@@ -241,7 +239,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("🔥 THAT'S THE ENERGY! $FLIK TO THE MOON")
         return
 
-    # Auto-replies
     if "x" in text or "twitter" in text:
         await update.message.reply_text("🔥 Official X: https://x.com/FLICKABICFLIK")
     if "website" in text or "site" in text:
@@ -303,7 +300,7 @@ async def resetraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global current_raid
     current_raid = None
     save_data()
-    await update.message.reply_text("✅ Raid reset. Type @flik to open menu.")
+    await update.message.reply_text("✅ Raid reset. Type /menu")
 
 async def joinraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global current_raid
@@ -347,7 +344,6 @@ async def setraidtime(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         global RAID_DURATION_MINUTES
         RAID_DURATION_MINUTES = int(context.args[0])
-        save_data()
         await update.message.reply_text(f"✅ Raid duration set to **{RAID_DURATION_MINUTES} minutes**")
     except:
         await update.message.reply_text("Usage: /setraidtime <minutes>")
@@ -370,6 +366,7 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+    app.add_handler(CommandHandler("menu", lambda u, c: show_main_menu(u)))
     app.add_handler(CommandHandler("startraid", startraid))
     app.add_handler(CommandHandler("resetraid", resetraid))
     app.add_handler(CommandHandler("endraid", endraid))
@@ -383,7 +380,7 @@ def main():
     app.add_handler(CommandHandler("leaderboard", active_leaderboard))
     app.add_handler(CommandHandler("myusername", myusername))
 
-    print("🤖 PERFECT ULTIMATE FLIK BOT IS LIVE 🔥 — FULL CODE + @flik MENU + BUTTONS FIXED")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — /menu + BUTTONS FIXED")
     app.run_polling()
 
 if __name__ == '__main__':
