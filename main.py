@@ -12,7 +12,8 @@ XAI_API_KEY = os.getenv('XAI_API_KEY')
 
 DAILY_GROK_LIMIT = 15
 RAID_DURATION_MINUTES = 15
-RAID_BONUS_POINTS = 40
+RAID_JOIN_POINTS = 10
+RAID_END_POINTS = 20
 
 ADMINS = ["FLICKABICFLIK"]
 
@@ -25,12 +26,11 @@ grok_usage = {}
 referrals = {}
 current_raid = None
 raid_duration_minutes = 15
-missions_completed = {}
 daily_activity = {}
 weekly_activity = {}
 
 def load_data():
-    global points, daily_streak, last_login_date, grok_usage, referrals, current_raid, raid_duration_minutes, missions_completed, daily_activity, weekly_activity
+    global points, daily_streak, last_login_date, grok_usage, referrals, current_raid, raid_duration_minutes, daily_activity, weekly_activity
     files = {
         'points.json': 'points',
         'daily_streak.json': 'daily_streak',
@@ -39,7 +39,6 @@ def load_data():
         'referrals.json': 'referrals',
         'current_raid.json': 'current_raid',
         'raid_settings.json': 'raid_duration_minutes',
-        'missions.json': 'missions_completed',
         'daily_activity.json': 'daily_activity',
         'weekly_activity.json': 'weekly_activity'
     }
@@ -57,8 +56,8 @@ def load_data():
 def save_data():
     for file, data in [('points.json', points), ('daily_streak.json', daily_streak),
                        ('last_login_date.json', last_login_date), ('grok_usage.json', grok_usage),
-                       ('referrals.json', referrals), ('missions.json', missions_completed),
-                       ('daily_activity.json', daily_activity), ('weekly_activity.json', weekly_activity)]:
+                       ('referrals.json', referrals), ('daily_activity.json', daily_activity),
+                       ('weekly_activity.json', weekly_activity)]:
         with open(file, 'w') as f:
             json.dump(data, f, indent=2)
     if current_raid:
@@ -83,10 +82,7 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         if any(word in lower for word in ["collab", "collaboration"]):
             await update.message.delete()
-            try:
-                await update.message.reply_text("🚫 'Collab' or 'Collaboration' mentions are not allowed.", delete_after=10)
-            except:
-                pass
+            await update.message.reply_text("🚫 'Collab' or 'Collaboration' mentions are not allowed.", delete_after=10)
             return True
 
         is_x_link = any(domain in lower for domain in ["x.com", "twitter.com"])
@@ -97,10 +93,7 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
             (text.isupper() and len(text) > 50) or
             (has_blocked_link and not (is_x_link and has_flik_ref))):
             await update.message.delete()
-            try:
-                await update.message.reply_text("🚫 Spam detected and removed.", delete_after=10)
-            except:
-                pass
+            await update.message.reply_text("🚫 Spam detected and removed.", delete_after=10)
             return True
 
     if update.message.photo or update.message.sticker or update.message.animation or update.message.video:
@@ -133,31 +126,23 @@ async def get_grok_response(query: str, username: str):
     except:
         return "🔥 Flik is cooking... Try again soon!"
 
-# ====================== VERIFICATION BUTTON ON JOIN ======================
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         keyboard = [[InlineKeyboardButton("✅ I'm not a bot", callback_data="verify_human")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(
-            f"🔥 Welcome @{member.username or member.first_name}!\n\n"
-            "Click the button below to verify you're not a bot.",
-            reply_markup=reply_markup
+            f"🔥 Welcome @{member.username or member.first_name}!\n\nClick the button below to verify you're not a bot.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
 async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "verify_human":
-        await query.edit_message_text(
-            text="✅ **Verified!** Welcome to the $FLIK community 🔥\n+5 points added!"
-        )
+        await query.edit_message_text("✅ **Verified!** Welcome to the $FLIK community 🔥 +5 points!")
         username = query.from_user.username
         if username:
             points[username] = points.get(username, 0) + 5
             save_data()
-
-# ====================== REST OF THE BOT (unchanged) ======================
-# (handle_message, raid commands, active leaderboard, etc.)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
@@ -200,27 +185,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # @Flik AI + smart commands
     if "@flik" in text or "@Flik" in original:
-        query = original.replace("@Flik", "").replace("@flik", "").strip().lower()
-        if "price" in query:
+        query_text = original.replace("@Flik", "").replace("@flik", "").strip().lower()
+        if "price" in query_text:
             await update.message.reply_text("📈 $FLIK is in pre-launch phase.\nPrice will appear here once listed!")
             return
-        elif "meme" in query:
-            theme = query.replace("meme", "").strip() or "moon"
+        elif "meme" in query_text:
+            theme = query_text.replace("meme", "").strip() or "moon"
             meme_text = random.choice([f"🚀 {theme.upper()} TO THE MOON! $FLIK", f"🔥 ONE FLICK = {theme.upper()}", f"🌕 $FLIK {theme.upper()} MISSION"])
             await update.message.reply_text(f"🖼 **MEME GENERATED**\n\n{meme_text}")
             return
-        elif "referral" in query or "myreferral" in query:
+        elif "referral" in query_text or "myreferral" in query_text:
             bot_info = await context.bot.get_me()
             link = f"https://t.me/{bot_info.username}?start={username}"
             await update.message.reply_text(f"🔥 **Your Referral Link**\n🔗 {link}")
             return
-        elif "leaderboard" in query or "active" in query or "mostactive" in query:
+        elif "leaderboard" in query_text or "active" in query_text or "mostactive" in query_text:
             await active_leaderboard(update, context)
             return
-        elif "poll" in query:
+        elif "poll" in query_text:
             await createpoll(update, context)
             return
-        response = await get_grok_response(query, username)
+        response = await get_grok_response(query_text, username)
         await update.message.reply_text(response)
         return
 
@@ -243,14 +228,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "website" in text or "site" in text:
         await update.message.reply_text("🔥 Official Website: https://flickabic.com")
 
-# ====================== DAILY + WEEKLY MOST ACTIVE LEADERBOARD ======================
+# ====================== ACTIVE LEADERBOARD ======================
 async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today_str = str(date.today())
-    today_counts = {}
-    for user, dates in daily_activity.items():
-        if today_str in dates:
-            today_counts[user] = dates[today_str]
-
+    today_counts = {user: counts.get(today_str, 0) for user, counts in daily_activity.items() if today_str in counts}
     weekly_counts = weekly_activity.copy()
 
     msg = "🏆 **MOST ACTIVE LEADERBOARD**\n\n**📅 TODAY**\n"
@@ -271,7 +252,7 @@ async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await update.message.reply_text(msg)
 
-# ====================== RAID COMMANDS ======================
+# ====================== RAID SYSTEM ======================
 async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.message.from_user):
         await update.message.reply_text("Admin only 🔥")
@@ -285,29 +266,6 @@ async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.job_queue.run_once(auto_end_raid, raid_duration_minutes * 60, chat_id=update.message.chat_id, name="raid_end")
     await update.message.reply_text(f"🚨 **RAID STARTED!** 🚨\nDuration: {raid_duration_minutes} min\n`/joinraid` to join!")
 
-async def endraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.message.from_user):
-        await update.message.reply_text("Admin only 🔥")
-        return
-    global current_raid
-    if not current_raid:
-        await update.message.reply_text("No active raid.")
-        return
-    await auto_end_raid(context)
-
-async def auto_end_raid(context: ContextTypes.DEFAULT_TYPE):
-    global current_raid
-    if not current_raid:
-        return
-    participants = current_raid.get("participants", [])
-    for user in participants:
-        points[user] = points.get(user, 0) + 20
-    save_data()
-    msg = f"🏁 **RAID ENDED** 🏁\nTotal raiders: **{len(participants)}**\n**+20 points** awarded to every raider! 🔥\n\nGreat job everyone! $FLIK to the moon!"
-    await context.bot.send_message(chat_id=context.job.chat_id, text=msg)
-    current_raid = None
-    save_data()
-
 async def joinraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global current_raid
     if not current_raid:
@@ -316,11 +274,30 @@ async def joinraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user.username
     if user and user not in current_raid.get("participants", []):
         current_raid.setdefault("participants", []).append(user)
-        points[user] = points.get(user, 0) + 10
+        points[user] = points.get(user, 0) + RAID_JOIN_POINTS
         save_data()
-        await update.message.reply_text(f"🔥 @{user} joined the raid! **+10 points**")
+        await update.message.reply_text(f"🔥 @{user} joined the raid! **+{RAID_JOIN_POINTS} points**")
     else:
         await update.message.reply_text("Already in raid 🔥")
+
+async def auto_end_raid(context: ContextTypes.DEFAULT_TYPE):
+    global current_raid
+    if not current_raid:
+        return
+    participants = current_raid.get("participants", [])
+    for user in participants:
+        points[user] = points.get(user, 0) + RAID_END_POINTS
+    save_data()
+    msg = f"🏁 **RAID ENDED** 🏁\nTotal raiders: **{len(participants)}**\n**+{RAID_END_POINTS} points** awarded to every raider!\nGreat job! $FLIK to the moon!"
+    await context.bot.send_message(chat_id=context.job.chat_id, text=msg)
+    current_raid = None
+    save_data()
+
+async def endraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.message.from_user):
+        await update.message.reply_text("Admin only 🔥")
+        return
+    await auto_end_raid(context)
 
 async def raidstatus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global current_raid
@@ -375,7 +352,7 @@ def main():
     app.add_handler(CommandHandler("dailyactive", active_leaderboard))
     app.add_handler(CommandHandler("leaderboard", active_leaderboard))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — VERIFICATION BUTTON ADDED ON JOIN")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — FULL VERSION WITH ALL FEATURES")
     app.run_polling()
 
 if __name__ == '__main__':
