@@ -87,16 +87,19 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.text:
         text = update.message.text
         lower = text.lower()
+        # Block collab/collaboration
         if any(word in lower for word in ["collab", "collaboration"]):
             await update.message.delete()
             await update.message.reply_text("🚫 'Collab' or 'Collaboration' mentions are not allowed.", delete_after=10)
             return True
+        # Link rules: ONLY allow X/Twitter links that contain Flik references
+        has_http = "http" in lower
         is_x_link = any(domain in lower for domain in ["x.com", "twitter.com"])
         has_flik_ref = any(word in lower for word in ["flik", "$flik", "flick", "flickabic", "flickabicflik"])
-        has_blocked_link = any(word in lower for word in ["http", "t.me", "tco", "telegram.me"])
-        if (len(text) > 300 or (text.isupper() and len(text) > 50) or (has_blocked_link and not (is_x_link and has_flik_ref))):
+        has_blocked_link = has_http and not (is_x_link and has_flik_ref)
+        if (len(text) > 300 or (text.isupper() and len(text) > 50) or has_blocked_link):
             await update.message.delete()
-            await update.message.reply_text("🚫 Spam detected and removed.", delete_after=10)
+            await update.message.reply_text("🚫 Links without $FLIK / flickabic references are not allowed.", delete_after=10)
             return True
     if update.message.photo or update.message.sticker or update.message.animation or update.message.video:
         await update.message.delete()
@@ -154,10 +157,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if current_raid:
             await query.edit_message_text("Raid already active! Use /resetraid first.")
             return
-        current_raid = {"participants": []}
+        current_raid = {"participants": [], "tweet_url": None}
         save_data()
         context.job_queue.run_once(auto_end_raid, RAID_DURATION_MINUTES * 60, chat_id=query.message.chat_id)
-        await query.edit_message_text("🚨 **RAID STARTED!**\n\nSend the tweet URL now.\n\nType /joinraid to participate.")
+        await query.edit_message_text("🚨 **RAID STARTED!**\n\n**Send the tweet URL now.**\n\nType /joinraid to participate.")
 
     elif data == "leaderboard":
         await active_leaderboard(update, context)
@@ -212,20 +215,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(f"🌟 Daily login! Streak: {streak} (no points for admins)")
 
-    # IMPROVED @flik MENU TRIGGER
+    # @flik / @FLICKABICBot menu
     bot_info = await context.bot.get_me()
     bot_mention = "@" + bot_info.username.lower()
     if bot_mention in original.lower() or "@flik" in text or "@Flik" in original:
         query_text = original.replace(bot_mention, "").replace("@Flik", "").replace("@flik", "").strip()
-        if query_text == "" or query_text.lower() in ["start", "menu", "start new raid", "raid"]:
+        if query_text == "" or query_text.lower() in ["start", "menu", "raid"]:
             await show_main_menu(update)
             return
-        # otherwise normal Grok AI
         response = await get_grok_response(query_text, username)
         await update.message.reply_text(response)
         return
 
-    # Energy system
+    # ENERGY
     if any(w in text for w in ["flick", "flik", "moon", "fire", "send it", "light it", "bic"]):
         now = datetime.now().timestamp()
         last = energy_last_time.get(username, 0)
@@ -239,6 +241,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("🔥 THAT'S THE ENERGY! $FLIK TO THE MOON")
         return
 
+    # AUTO RAID URL CAPTURE (this was missing)
+    global current_raid
+    if current_raid and current_raid.get("tweet_url") is None and "http" in text:
+        current_raid["tweet_url"] = original
+        save_data()
+        await update.message.reply_text("✅ **Tweet URL saved for the raid!**\nRaid is now fully active.\n\nType /joinraid to participate!")
+        return
+
+    # Auto-replies
     if "x" in text or "twitter" in text:
         await update.message.reply_text("🔥 Official X: https://x.com/FLICKABICFLIK")
     if "website" in text or "site" in text:
@@ -269,7 +280,8 @@ async def raidstatus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not current_raid:
         await update.message.reply_text("No active raid.")
         return
-    await update.message.reply_text(f"🚨 RAID STATUS\nRaiders: {len(current_raid.get('participants', []))}")
+    url = current_raid.get("tweet_url", "No URL yet")
+    await update.message.reply_text(f"🚨 RAID STATUS\nRaiders: {len(current_raid.get('participants', []))}\nTweet: {url}")
 
 async def my_referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user.username
@@ -288,10 +300,10 @@ async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if current_raid:
         await update.message.reply_text("Raid already active! Use /resetraid first.")
         return
-    current_raid = {"participants": []}
+    current_raid = {"participants": [], "tweet_url": None}
     save_data()
     context.job_queue.run_once(auto_end_raid, RAID_DURATION_MINUTES * 60, chat_id=update.message.chat_id)
-    await update.message.reply_text(f"🚨 **RAID STARTED!** 🚨\nDuration: {RAID_DURATION_MINUTES} min\n`/joinraid` to join!")
+    await update.message.reply_text("🚨 **RAID STARTED!**\n\n**Send the tweet URL now.**")
 
 async def resetraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.message.from_user):
@@ -380,7 +392,7 @@ def main():
     app.add_handler(CommandHandler("leaderboard", active_leaderboard))
     app.add_handler(CommandHandler("myusername", myusername))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — /menu + BUTTONS FIXED")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — RAID URL CAPTURE + STRICT ANTI-SPAM + /menu")
     app.run_polling()
 
 if __name__ == '__main__':
