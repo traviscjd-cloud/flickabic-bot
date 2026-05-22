@@ -65,18 +65,39 @@ load_data()
 def is_admin(user):
     return user and user.username and user.username in ADMINS
 
-# ====================== FIXED ANTI-SPAM ======================
+# ====================== ANTI-SPAM (FINAL VERSION) ======================
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or is_admin(update.message.from_user):
         return False
 
-    # Text spam
     if update.message.text:
         text = update.message.text
         lower = text.lower()
+
+        # HARD BLOCK: collab / collaboration (case-insensitive)
+        if any(word in lower for word in ["collab", "collaboration"]):
+            await update.message.delete()
+            try:
+                await update.message.reply_text("🚫 'Collab' or 'Collaboration' mentions are not allowed.", delete_after=10)
+            except:
+                pass
+            return True
+
+        # X/Twitter link check
+        is_x_link = any(domain in lower for domain in ["x.com", "twitter.com"])
+
+        # Flik references (ALL case-insensitive + $flik explicitly added)
+        has_flik_ref = any(word in lower for word in [
+            "flik", "$flik", "flick", "flickabic", "flickabicflik"
+        ])
+
+        # Other blocked links
+        has_blocked_link = any(word in lower for word in ["http", "t.me", "tco", "telegram.me"])
+
+        # Block spam
         if (len(text) > 300 or
             (text.isupper() and len(text) > 50) or
-            any(word in lower for word in ["http", "t.me", "tco", "telegram.me"])):
+            (has_blocked_link and not (is_x_link and has_flik_ref))):
             await update.message.delete()
             try:
                 await update.message.reply_text("🚫 Spam detected and removed.", delete_after=10)
@@ -193,9 +214,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Auto-replies
     if "x" in text or "twitter" in text:
-        await update.message.reply_text("🔥 X: https://x.com/FLICKABICFLIK")
+        await update.message.reply_text("🔥 Official X: https://x.com/FLICKABICFLIK")
     if "website" in text or "site" in text:
-        await update.message.reply_text("🔥 Website: https://flickabic.com")
+        await update.message.reply_text("🔥 Official Website: https://flickabic.com")
 
 # ====================== COMMANDS ======================
 async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -284,7 +305,6 @@ def main():
     app.add_handler(ChatMemberHandler(welcome, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # All commands
     app.add_handler(CommandHandler("startraid", startraid))
     app.add_handler(CommandHandler("endraid", endraid))
     app.add_handler(CommandHandler("joinraid", joinraid))
@@ -293,7 +313,7 @@ def main():
     app.add_handler(CommandHandler("createpoll", createpoll))
     app.add_handler(CommandHandler("myreferral", my_referral))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — COMPLETE & ANTI-SPAM FIXED")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — ANTI-SPAM FULLY UPDATED")
     app.run_polling()
 
 if __name__ == '__main__':
