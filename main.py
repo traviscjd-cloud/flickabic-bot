@@ -19,7 +19,7 @@ ADMINS = ["FLICKABICFLIK", "FLICKABIC", "flickabic"]
 
 # Data
 points = {}
-energy_cooldown = {}
+energy_last_time = {}
 daily_streak = {}
 last_login_date = {}
 grok_usage = {}
@@ -30,9 +30,10 @@ daily_activity = {}
 weekly_activity = {}
 
 def load_data():
-    global points, daily_streak, last_login_date, grok_usage, referrals, current_raid, raid_duration_minutes, daily_activity, weekly_activity
+    global points, energy_last_time, daily_streak, last_login_date, grok_usage, referrals, current_raid, raid_duration_minutes, daily_activity, weekly_activity
     files = {
         'points.json': 'points',
+        'energy_last_time.json': 'energy_last_time',
         'daily_streak.json': 'daily_streak',
         'last_login_date.json': 'last_login_date',
         'grok_usage.json': 'grok_usage',
@@ -54,10 +55,10 @@ def load_data():
             globals()[var] = {} if var != 'current_raid' else None
 
 def save_data():
-    for file, data in [('points.json', points), ('daily_streak.json', daily_streak),
-                       ('last_login_date.json', last_login_date), ('grok_usage.json', grok_usage),
-                       ('referrals.json', referrals), ('daily_activity.json', daily_activity),
-                       ('weekly_activity.json', weekly_activity)]:
+    for file, data in [('points.json', points), ('energy_last_time.json', energy_last_time),
+                       ('daily_streak.json', daily_streak), ('last_login_date.json', last_login_date),
+                       ('grok_usage.json', grok_usage), ('referrals.json', referrals),
+                       ('daily_activity.json', daily_activity), ('weekly_activity.json', weekly_activity)]:
         with open(file, 'w') as f:
             json.dump(data, f, indent=2)
     if current_raid:
@@ -188,12 +189,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("🔥 What's on your mind? Ask me anything.")
         return
 
-    # ENERGY — instant reply, +1 point per hour max, admins get 0
+    # Energy — instant reply, +1 point per hour max, admins get 0
     if any(w in text for w in ["flick", "flik", "moon", "fire", "send it", "light it", "bic"]):
         now = datetime.now().timestamp()
-        last = energy_cooldown.get(username, 0)
-        if now - last > 3600:  # 1 hour
-            energy_cooldown[username] = now
+        last = energy_last_time.get(username, 0)
+        if now - last > 3600:
+            energy_last_time[username] = now
             if not is_admin(user):
                 points[username] = points.get(username, 0) + 1
                 save_data()
@@ -374,7 +375,7 @@ def main():
     app.add_handler(CommandHandler("leaderboard", active_leaderboard))
     app.add_handler(CommandHandler("myusername", myusername))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — RAID BUTTONS FIXED + QUICK RAID 15 MIN")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — RAID BUTTONS FIXED + QUICK RAID 15 MIN + NO POINTS FOR ADMINS")
     app.run_polling()
 
 if __name__ == '__main__':
