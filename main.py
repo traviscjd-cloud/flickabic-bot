@@ -75,32 +75,26 @@ def is_admin(user):
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or is_admin(update.message.from_user):
         return False
-
     if update.message.text:
         text = update.message.text
         lower = text.lower()
-
         if any(word in lower for word in ["collab", "collaboration"]):
             await update.message.delete()
             await update.message.reply_text("🚫 'Collab' or 'Collaboration' mentions are not allowed.", delete_after=10)
             return True
-
         is_x_link = any(domain in lower for domain in ["x.com", "twitter.com"])
         has_flik_ref = any(word in lower for word in ["flik", "$flik", "flick", "flickabic", "flickabicflik"])
         has_blocked_link = any(word in lower for word in ["http", "t.me", "tco", "telegram.me"])
-
         if (len(text) > 300 or
             (text.isupper() and len(text) > 50) or
             (has_blocked_link and not (is_x_link and has_flik_ref))):
             await update.message.delete()
             await update.message.reply_text("🚫 Spam detected and removed.", delete_after=10)
             return True
-
     if update.message.photo or update.message.sticker or update.message.animation or update.message.video:
         await update.message.delete()
         await update.message.reply_text("📸 Media sent to admins for approval.")
         return True
-
     return False
 
 async def get_grok_response(query: str, username: str):
@@ -147,10 +141,8 @@ async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
-
     if await anti_spam(update, context):
         return
-
     if not update.message.text:
         return
 
@@ -163,7 +155,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     today_str = str(date.today())
 
-    # Activity tracking (still counts for admins)
+    # Activity tracking
     if username not in daily_activity:
         daily_activity[username] = {}
     daily_activity[username][today_str] = daily_activity[username].get(today_str, 0) + 1
@@ -172,7 +164,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     weekly_activity[username] += 1
     save_data()
 
-    # Daily login - NO points for admins
+    # Daily login
     if username not in last_login_date or last_login_date[username] != today_str:
         last_login_date[username] = today_str
         streak = daily_streak.get(username, 0) + 1
@@ -185,33 +177,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(f"🌟 Daily login! Streak: {streak} (no points for admins)")
 
-    # @Flik AI + smart commands
-    if "@flik" in text or "@Flik" in original:
-        query_text = original.replace("@Flik", "").replace("@flik", "").strip().lower()
-        if "price" in query_text:
-            await update.message.reply_text("📈 $FLIK is in pre-launch phase.\nPrice will appear here once listed!")
-            return
-        elif "meme" in query_text:
-            theme = query_text.replace("meme", "").strip() or "moon"
-            meme_text = random.choice([f"🚀 {theme.upper()} TO THE MOON! $FLIK", f"🔥 ONE FLICK = {theme.upper()}", f"🌕 $FLIK {theme.upper()} MISSION"])
-            await update.message.reply_text(f"🖼 **MEME GENERATED**\n\n{meme_text}")
-            return
-        elif "referral" in query_text or "myreferral" in query_text:
-            bot_info = await context.bot.get_me()
-            link = f"https://t.me/{bot_info.username}?start={username}"
-            await update.message.reply_text(f"🔥 **Your Referral Link**\n🔗 {link}")
-            return
-        elif "leaderboard" in query_text or "active" in query_text or "mostactive" in query_text:
-            await active_leaderboard(update, context)
-            return
-        elif "poll" in query_text:
-            await createpoll(update, context)
-            return
-        response = await get_grok_response(query_text, username)
-        await update.message.reply_text(response)
-        return
+    # === AI MENTION CHECK — FIXED FOR POPUP @FLICKABICBot ===
+    bot_info = await context.bot.get_me()
+    bot_username = "@" + bot_info.username.lower()
+    if (bot_username in original.lower() or "@flik" in text or "@Flik" in original):
+        query = original.replace(bot_username, "").replace("@Flik", "").replace("@flik", "").strip()
+        if query:
+            response = await get_grok_response(query, username)
+            await update.message.reply_text(response)
+        else:
+            await update.message.reply_text("🔥 What's on your mind? Ask me anything.")
+        return   # ← IMPORTANT: stop here so energy doesn't trigger
 
-    # Energy system - NO points for admins
+    # Energy system
     if any(w in text for w in ["flick", "flik", "moon", "fire", "send it", "light it", "bic"]):
         last = energy_cooldown.get(username, 0)
         now = datetime.now().timestamp()
@@ -222,7 +200,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 save_data()
                 await update.message.reply_text("🔥 THAT'S THE ENERGY! $FLIK TO THE MOON")
             else:
-                await update.message.reply_text("🔥 Energy detected (no points for admins)")
+                await update.message.reply_text("🔥 Energy detected")
         else:
             await update.message.reply_text(f"⏳ Cooldown {int(60 - (now - last))}s left.")
         return
@@ -233,12 +211,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "website" in text or "site" in text:
         await update.message.reply_text("🔥 Official Website: https://flickabic.com")
 
-# ====================== ACTIVE LEADERBOARD ======================
+# ====================== LEADERBOARD ======================
 async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today_str = str(date.today())
     today_counts = {user: counts.get(today_str, 0) for user, counts in daily_activity.items() if today_str in counts}
     weekly_counts = weekly_activity.copy()
-
     msg = "🏆 **MOST ACTIVE LEADERBOARD**\n\n**📅 TODAY**\n"
     if today_counts:
         sorted_today = sorted(today_counts.items(), key=lambda x: x[1], reverse=True)[:10]
@@ -246,7 +223,6 @@ async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE)
             msg += f"{i}. @{u} — {c} messages\n"
     else:
         msg += "No activity yet today.\n"
-
     msg += "\n**📅 THIS WEEK**\n"
     if weekly_counts:
         sorted_week = sorted(weekly_counts.items(), key=lambda x: x[1], reverse=True)[:10]
@@ -254,7 +230,6 @@ async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE)
             msg += f"{i}. @{u} — {c} messages\n"
     else:
         msg += "No weekly activity yet.\n"
-
     await update.message.reply_text(msg)
 
 # ====================== RAID SYSTEM ======================
@@ -293,8 +268,6 @@ async def auto_end_raid(context: ContextTypes.DEFAULT_TYPE):
         return
     participants = current_raid.get("participants", [])
     for username in participants:
-        # Find the user object is not available here, but we can assume non-admins get points
-        # For simplicity, we award points to everyone (admins rarely join raids)
         points[username] = points.get(username, 0) + RAID_END_POINTS
     save_data()
     msg = f"🏁 **RAID ENDED** 🏁\nTotal raiders: **{len(participants)}**\n**+{RAID_END_POINTS} points** awarded to every raider!\nGreat job! $FLIK to the moon!"
@@ -361,7 +334,7 @@ def main():
     app.add_handler(CommandHandler("dailyactive", active_leaderboard))
     app.add_handler(CommandHandler("leaderboard", active_leaderboard))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — FULL VERSION, ADMINS FIXED, NO POINTS FOR ADMINS")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — @FLICKABICBot POPUP MENTION FIXED")
     app.run_polling()
 
 if __name__ == '__main__':
