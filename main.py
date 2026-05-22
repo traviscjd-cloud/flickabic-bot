@@ -139,6 +139,36 @@ async def verify_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_data()
         await query.edit_message_text("✅ **Verified!** Welcome to the $FLIK community 🔥")
 
+# ====================== INTERACTIVE RAID POP-UP ======================
+async def raid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        [InlineKeyboardButton("🚀 Quick Raid (5 likes • 2 reposts • 3 comments • 15 min)", callback_data="raid_quick")],
+        [InlineKeyboardButton("⚙️ Custom Raid Setup", callback_data="raid_custom")]
+    ]
+    await update.message.reply_text(
+        "🔥 **Raid Setup**\nChoose your raid type:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+async def raid_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data == "raid_quick":
+        global current_raid
+        if current_raid:
+            await query.edit_message_text("Raid already active! Use /resetraid first.")
+            return
+        current_raid = {"participants": [], "tweet_url": None, "targets": {"likes": 5, "reposts": 2, "comments": 3}, "duration": DEFAULT_RAID_DURATION}
+        save_data()
+        await query.edit_message_text("✅ Quick Raid started!\n\n**Send the tweet URL now** to start raiding.")
+        context.job_queue.run_once(auto_end_raid, DEFAULT_RAID_DURATION * 60, chat_id=query.message.chat_id, name="raid_end")
+
+    elif data == "raid_custom":
+        await query.edit_message_text("Custom raid setup — use /startraid <url> <likes> <reposts> <comments> <minutes>\nOr /resetraid first.")
+
+# Rest of the bot (handle_message, raid commands, leaderboard, etc.)
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
@@ -207,6 +237,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "website" in text or "site" in text:
         await update.message.reply_text("🔥 Official Website: https://flickabic.com")
 
+# Leaderboard, raid commands, etc. are the same as previous complete version
 async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today_str = str(date.today())
     today_counts = {user: counts.get(today_str, 0) for user, counts in daily_activity.items() if today_str in counts}
@@ -227,36 +258,6 @@ async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE)
         msg += "No weekly activity yet.\n"
     await update.message.reply_text(msg)
 
-# ====================== INTERACTIVE RAID POP-UP ======================
-async def raid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    keyboard = [
-        [InlineKeyboardButton("🚀 Quick Raid (15 min)", callback_data="raid_quick")],
-        [InlineKeyboardButton("⚙️ Custom Targets", callback_data="raid_custom")]
-    ]
-    await update.message.reply_text(
-        "🔥 **Raid Setup**\nChoose how you want to run the raid:",
-        reply_markup=InlineKeyboardMarkup(keyboard)
-    )
-
-async def raid_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-
-    if data == "raid_quick":
-        global current_raid
-        if current_raid:
-            await query.edit_message_text("Raid already active! Use /resetraid first.")
-            return
-        current_raid = {"participants": [], "tweet_url": None, "duration": DEFAULT_RAID_DURATION}
-        save_data()
-        await query.edit_message_text("✅ Quick raid started (15 minutes).\nSend the tweet URL now or use /startraid with URL.")
-        context.job_queue.run_once(auto_end_raid, DEFAULT_RAID_DURATION * 60, chat_id=query.message.chat_id, name="raid_end")
-
-    elif data == "raid_custom":
-        await query.edit_message_text("Custom raid setup coming soon — for now use /startraid <url> <likes> <reposts> <comments> <minutes> or /resetraid first.")
-
-# Raid system (kept for compatibility)
 async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.message.from_user):
         await update.message.reply_text("Admin only 🔥")
@@ -358,6 +359,7 @@ def main():
 
     app.add_handler(ChatMemberHandler(welcome, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(CallbackQueryHandler(verify_callback))
+    app.add_handler(CallbackQueryHandler(raid_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     app.add_handler(CommandHandler("startraid", startraid))
@@ -374,7 +376,7 @@ def main():
     app.add_handler(CommandHandler("leaderboard", active_leaderboard))
     app.add_handler(CommandHandler("myusername", myusername))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — INTERACTIVE /raid POP-UP ADDED")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — RAID POP-UP FIXED WITH QUICK DEFAULTS")
     app.run_polling()
 
 if __name__ == '__main__':
