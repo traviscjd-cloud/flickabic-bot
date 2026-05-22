@@ -12,6 +12,8 @@ XAI_API_KEY = os.getenv('XAI_API_KEY')
 
 DAILY_GROK_LIMIT = 15
 RAID_DURATION_MINUTES = 15
+RAID_BONUS_POINTS = 30  # Bonus given to every raider when raid ends
+
 ADMINS = ["FLICKABICFLIK"]
 
 # Data
@@ -65,7 +67,7 @@ load_data()
 def is_admin(user):
     return user and user.username and user.username in ADMINS
 
-# ====================== ANTI-SPAM (FINAL VERSION) ======================
+# ====================== ANTI-SPAM (X links only with Flik reference) ======================
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or is_admin(update.message.from_user):
         return False
@@ -74,7 +76,7 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text = update.message.text
         lower = text.lower()
 
-        # HARD BLOCK: collab / collaboration (case-insensitive)
+        # HARD BLOCK: collab / collaboration
         if any(word in lower for word in ["collab", "collaboration"]):
             await update.message.delete()
             try:
@@ -86,15 +88,12 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # X/Twitter link check
         is_x_link = any(domain in lower for domain in ["x.com", "twitter.com"])
 
-        # Flik references (ALL case-insensitive + $flik explicitly added)
-        has_flik_ref = any(word in lower for word in [
-            "flik", "$flik", "flick", "flickabic", "flickabicflik"
-        ])
+        # Flik references (case-insensitive + $flik)
+        has_flik_ref = any(word in lower for word in ["flik", "$flik", "flick", "flickabic", "flickabicflik"])
 
         # Other blocked links
         has_blocked_link = any(word in lower for word in ["http", "t.me", "tco", "telegram.me"])
 
-        # Block spam
         if (len(text) > 300 or
             (text.isupper() and len(text) > 50) or
             (has_blocked_link and not (is_x_link and has_flik_ref))):
@@ -218,7 +217,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "website" in text or "site" in text:
         await update.message.reply_text("🔥 Official Website: https://flickabic.com")
 
-# ====================== COMMANDS ======================
+# ====================== RAID COMMANDS WITH REWARD DISTRIBUTION ======================
 async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.message.from_user):
         await update.message.reply_text("Admin only 🔥")
@@ -247,7 +246,17 @@ async def auto_end_raid(context: ContextTypes.DEFAULT_TYPE):
     if not current_raid:
         return
     participants = current_raid.get("participants", [])
-    msg = f"🏁 **RAID ENDED** 🏁\nTotal raiders: {len(participants)}\nGreat job! $FLIK to the moon!"
+
+    # === RAID REWARD DISTRIBUTION ===
+    bonus = RAID_BONUS_POINTS
+    for user in participants:
+        points[user] = points.get(user, 0) + bonus
+    save_data()
+
+    msg = f"🏁 **RAID ENDED** 🏁\n"
+    msg += f"Total raiders: **{len(participants)}**\n"
+    msg += f"Reward distributed: **+{bonus} points to each raider!** 🔥\n\n"
+    msg += "Great job everyone! $FLIK to the moon!"
     await context.bot.send_message(chat_id=context.job.chat_id, text=msg)
     current_raid = None
     save_data()
@@ -262,7 +271,9 @@ async def joinraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         current_raid.setdefault("participants", []).append(user)
         points[user] = points.get(user, 0) + 10
         save_data()
-        await update.message.reply_text(f"🔥 @{user} joined! +10 points")
+        await update.message.reply_text(f"🔥 @{user} joined the raid! +10 points")
+    else:
+        await update.message.reply_text("Already in raid 🔥")
 
 async def raidstatus(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global current_raid
@@ -313,7 +324,7 @@ def main():
     app.add_handler(CommandHandler("createpoll", createpoll))
     app.add_handler(CommandHandler("myreferral", my_referral))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — ANTI-SPAM FULLY UPDATED")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — RAID REWARD DISTRIBUTION ADDED (+10 join + 30 end)")
     app.run_polling()
 
 if __name__ == '__main__':
