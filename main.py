@@ -15,7 +15,9 @@ RAID_DURATION_MINUTES = 15
 RAID_JOIN_POINTS = 10
 RAID_END_POINTS = 20
 
-ADMINS = ["FLICKABICFLIK", "FLICKABIC"]
+# ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
+ADMINS = ["FLICKABICFLIK", "FLICKABIC", "flickabic"]
+# ←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←←
 
 # Data
 points = {}
@@ -71,7 +73,7 @@ load_data()
 def is_admin(user):
     return user and user.username and user.username in ADMINS
 
-# ====================== ANTI-SPAM ======================
+# ANTI-SPAM (unchanged)
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or is_admin(update.message.from_user):
         return False
@@ -107,7 +109,6 @@ async def get_grok_response(query: str, username: str):
             return f"⛔ Daily @Flik limit reached ({DAILY_GROK_LIMIT} messages). Try again tomorrow!"
         grok_usage[username][today] += 1
         save_data()
-
     if not XAI_API_KEY:
         return "🔥 Flik is here! Ask me anything."
     try:
@@ -164,7 +165,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     weekly_activity[username] += 1
     save_data()
 
-    # Daily login
+    # Daily login (no points for admins)
     if username not in last_login_date or last_login_date[username] != today_str:
         last_login_date[username] = today_str
         streak = daily_streak.get(username, 0) + 1
@@ -177,17 +178,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(f"🌟 Daily login! Streak: {streak} (no points for admins)")
 
-    # === AI MENTION CHECK — FIXED FOR POPUP @FLICKABICBot ===
+    # @Flik AI — FIXED FOR POPUP @FLICKABICBot
     bot_info = await context.bot.get_me()
-    bot_username = "@" + bot_info.username.lower()
-    if (bot_username in original.lower() or "@flik" in text or "@Flik" in original):
-        query = original.replace(bot_username, "").replace("@Flik", "").replace("@flik", "").strip()
-        if query:
-            response = await get_grok_response(query, username)
+    bot_mention = "@" + bot_info.username.lower()
+    if bot_mention in original.lower() or "@flik" in text or "@Flik" in original:
+        query_text = original.replace(bot_mention, "").replace("@Flik", "").replace("@flik", "").strip()
+        if query_text:
+            response = await get_grok_response(query_text, username)
             await update.message.reply_text(response)
         else:
             await update.message.reply_text("🔥 What's on your mind? Ask me anything.")
-        return   # ← IMPORTANT: stop here so energy doesn't trigger
+        return
 
     # Energy system
     if any(w in text for w in ["flick", "flik", "moon", "fire", "send it", "light it", "bic"]):
@@ -211,7 +212,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if "website" in text or "site" in text:
         await update.message.reply_text("🔥 Official Website: https://flickabic.com")
 
-# ====================== LEADERBOARD ======================
+# Leaderboard
 async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     today_str = str(date.today())
     today_counts = {user: counts.get(today_str, 0) for user, counts in daily_activity.items() if today_str in counts}
@@ -232,7 +233,7 @@ async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE)
         msg += "No weekly activity yet.\n"
     await update.message.reply_text(msg)
 
-# ====================== RAID SYSTEM ======================
+# Raid system (unchanged)
 async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.message.from_user):
         await update.message.reply_text("Admin only 🔥")
@@ -316,6 +317,11 @@ async def my_referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
     link = f"https://t.me/{bot_info.username}?start={user}"
     await update.message.reply_text(f"🔥 **Your Referral Link**\n🔗 {link}")
 
+# Debug command
+async def myusername(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    await update.message.reply_text(f"Bot sees your username as: **@{user.username}**\nADMINS list: {ADMINS}")
+
 def main():
     app = Application.builder().token(TOKEN).build()
 
@@ -333,8 +339,9 @@ def main():
     app.add_handler(CommandHandler("active", active_leaderboard))
     app.add_handler(CommandHandler("dailyactive", active_leaderboard))
     app.add_handler(CommandHandler("leaderboard", active_leaderboard))
+    app.add_handler(CommandHandler("myusername", myusername))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — @FLICKABICBot POPUP MENTION FIXED")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — /myusername DEBUG ADDED")
     app.run_polling()
 
 if __name__ == '__main__':
