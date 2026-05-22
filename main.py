@@ -1,15 +1,18 @@
 import os
 import json
 import requests
+import random
 from datetime import datetime, date
 from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes, ChatMemberHandler
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ChatMemberHandler
 from telegram.constants import ParseMode
 
 TOKEN = os.getenv('BOT_TOKEN')
 XAI_API_KEY = os.getenv('XAI_API_KEY')
 
 DAILY_GROK_LIMIT = 15
+RAID_DURATION_MINUTES = 15
+ADMINS = ["FLICKABICFLIK"]
 
 # Data
 points = {}
@@ -17,40 +20,86 @@ energy_cooldown = {}
 daily_streak = {}
 last_login_date = {}
 grok_usage = {}
-ADMINS = ["FLICKABICFLIK"]
+referrals = {}
+current_raid = None
+raid_duration_minutes = 15
+missions_completed = {}
 
 def load_data():
-    global points, daily_streak, last_login_date, grok_usage
-    for file, var in [('points.json', 'points'), ('daily_streak.json', 'daily_streak'),
-                      ('last_login_date.json', 'last_login_date'), ('grok_usage.json', 'grok_usage')]:
+    global points, daily_streak, last_login_date, grok_usage, referrals, current_raid, raid_duration_minutes, missions_completed
+    files = {
+        'points.json': 'points',
+        'daily_streak.json': 'daily_streak',
+        'last_login_date.json': 'last_login_date',
+        'grok_usage.json': 'grok_usage',
+        'referrals.json': 'referrals',
+        'current_raid.json': 'current_raid',
+        'raid_settings.json': 'raid_duration_minutes',
+        'missions.json': 'missions_completed'
+    }
+    for file, var in files.items():
         try:
             with open(file, 'r') as f:
-                globals()[var] = json.load(f)
+                data = json.load(f)
+                if var == 'raid_duration_minutes':
+                    globals()['raid_duration_minutes'] = data
+                else:
+                    globals()[var] = data
         except:
-            globals()[var] = {}
+            globals()[var] = {} if var != 'current_raid' else None
 
 def save_data():
     for file, data in [('points.json', points), ('daily_streak.json', daily_streak),
-                       ('last_login_date.json', last_login_date), ('grok_usage.json', grok_usage)]:
+                       ('last_login_date.json', last_login_date), ('grok_usage.json', grok_usage),
+                       ('referrals.json', referrals), ('missions.json', missions_completed)]:
         with open(file, 'w') as f:
             json.dump(data, f, indent=2)
+    if current_raid:
+        with open('current_raid.json', 'w') as f:
+            json.dump(current_raid, f, indent=2)
+    with open('raid_settings.json', 'w') as f:
+        json.dump(raid_duration_minutes, f)
 
 load_data()
 
 def is_admin(user):
     return user and user.username and user.username in ADMINS
 
+# ====================== FIXED ANTI-SPAM ======================
+async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message or is_admin(update.message.from_user):
+        return False
+
+    # Text spam
+    if update.message.text:
+        text = update.message.text
+        lower = text.lower()
+        if (len(text) > 300 or
+            (text.isupper() and len(text) > 50) or
+            any(word in lower for word in ["http", "t.me", "tco", "telegram.me"])):
+            await update.message.delete()
+            try:
+                await update.message.reply_text("🚫 Spam detected and removed.", delete_after=10)
+            except:
+                pass
+            return True
+
+    # Media spam (non-admins)
+    if update.message.photo or update.message.sticker or update.message.animation or update.message.video:
+        await update.message.delete()
+        await update.message.reply_text("📸 Media sent to admins for approval.")
+        return True
+
+    return False
+
 async def get_grok_response(query: str, username: str):
     if is_admin(type('obj', (object,), {'username': username})()):
         pass
     else:
         today = str(date.today())
-        if username not in grok_usage:
-            grok_usage[username] = {}
-        if today not in grok_usage[username]:
-            grok_usage[username][today] = 0
+        grok_usage.setdefault(username, {}).setdefault(today, 0)
         if grok_usage[username][today] >= DAILY_GROK_LIMIT:
-            return f"⛔ Daily limit reached ({DAILY_GROK_LIMIT} messages). Admins have unlimited access."
+            return f"⛔ Daily @Flik limit reached ({DAILY_GROK_LIMIT} messages). Try again tomorrow!"
         grok_usage[username][today] += 1
         save_data()
 
@@ -60,15 +109,7 @@ async def get_grok_response(query: str, username: str):
         r = requests.post(
             "https://api.x.ai/v1/chat/completions",
             headers={"Authorization": f"Bearer {XAI_API_KEY}", "Content-Type": "application/json"},
-            json={
-                "model": "grok-4",
-                "messages": [
-                    {"role": "system", "content": "You are Flik — the ultimate savage, hype, funny, and wise AI leader of the $FLIK community. When asked for memes, be extremely creative and viral."},
-                    {"role": "user", "content": f"@{username} asked: {query}"}
-                ],
-                "temperature": 0.9,
-                "max_tokens": 400
-            }
+            json={"model": "grok-4", "messages": [{"role": "system", "content": "You are Flik — savage, hype, funny, wise leader of $FLIK."}, {"role": "user", "content": f"@{username}: {query}"}]}
         )
         return r.json()['choices'][0]['message']['content']
     except:
@@ -76,67 +117,183 @@ async def get_grok_response(query: str, username: str):
 
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
-        await update.message.reply_text(f"🔥 Welcome @{member.username or member.first_name}! Mention **@Flik** + anything (try @Flik meme doge).")
+        await update.message.reply_text(f"🔥 Welcome @{member.username or member.first_name}! Mention **@Flik** + anything.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message or not update.message.text:
+    if not update.message:
+        return
+
+    # ANTI-SPAM FIRST
+    if await anti_spam(update, context):
+        return
+
+    if not update.message.text:
         return
 
     text = update.message.text.lower()
-    original_text = update.message.text
+    original = update.message.text
     user = update.message.from_user
-    now = datetime.now().timestamp()
-    today = str(date.today())
     username = user.username
-
     if not username:
         return
 
-    # Daily Login
+    # Daily login
+    today = str(date.today())
     if username not in last_login_date or last_login_date[username] != today:
         last_login_date[username] = today
         streak = daily_streak.get(username, 0) + 1
         daily_streak[username] = streak
-        reward = 5 if streak == 1 else 8 if streak == 2 else 12 if streak == 3 else 15
+        reward = 5 if streak == 1 else 15
         points[username] = points.get(username, 0) + reward
         save_data()
-        await update.message.reply_text(f"🌟 **Daily Login!** +{reward} points | Streak: {streak} days")
+        await update.message.reply_text(f"🌟 Daily login! +{reward} points | Streak: {streak}")
 
-    # === @FLIK MAIN AI ===
-    if "@flik" in text or "@Flik" in original_text:
-        query = original_text.replace("@Flik", "").replace("@flik", "").strip()
-        if query:
-            response = await get_grok_response(query, username)
-            await update.message.reply_text(response)
-        else:
-            await update.message.reply_text("🔥 What's on your mind? Try: @Flik meme doge")
+    # @Flik AI + smart commands
+    if "@flik" in text or "@Flik" in original:
+        query = original.replace("@Flik", "").replace("@flik", "").strip().lower()
+        if "price" in query:
+            await update.message.reply_text("📈 $FLIK is in pre-launch phase.\nPrice will appear here once listed!")
+            return
+        elif "meme" in query:
+            theme = query.replace("meme", "").strip() or "moon"
+            meme_text = random.choice([f"🚀 {theme.upper()} TO THE MOON! $FLIK", f"🔥 ONE FLICK = {theme.upper()}", f"🌕 $FLIK {theme.upper()} MISSION"])
+            await update.message.reply_text(f"🖼 **MEME GENERATED**\n\n{meme_text}")
+            return
+        elif "referral" in query or "myreferral" in query:
+            bot_info = await context.bot.get_me()
+            link = f"https://t.me/{bot_info.username}?start={username}"
+            await update.message.reply_text(f"🔥 **Your Referral Link**\n🔗 {link}")
+            return
+        elif "leaderboard" in query:
+            sorted_refs = sorted(referrals.items(), key=lambda x: x[1], reverse=True)
+            msg = "🏆 **REFERRAL LEADERBOARD**\n\n"
+            for i, (u, c) in enumerate(sorted_refs[:10], 1):
+                msg += f"{i}. @{u} — {c} referrals\n"
+            await update.message.reply_text(msg or "No referrals yet!")
+            return
+        elif "poll" in query:
+            await createpoll(update, context)
+            return
+        response = await get_grok_response(query, username)
+        await update.message.reply_text(response)
         return
 
-    # Energy
-    if any(word in text for word in ["flick", "flik", "moon", "fire", "send it", "light it", "bic"]):
+    # Energy system
+    if any(w in text for w in ["flick", "flik", "moon", "fire", "send it", "light it", "bic"]):
         last = energy_cooldown.get(username, 0)
+        now = datetime.now().timestamp()
         if now - last > 60:
             energy_cooldown[username] = now
             points[username] = points.get(username, 0) + 1
             save_data()
             await update.message.reply_text("🔥 THAT'S THE ENERGY! $FLIK TO THE MOON")
         else:
-            left = int(60 - (now - last))
-            await update.message.reply_text(f"⏳ Cooldown! {left} seconds left.")
+            await update.message.reply_text(f"⏳ Cooldown {int(60 - (now - last))}s left.")
         return
 
     # Auto-replies
     if "x" in text or "twitter" in text:
-        await update.message.reply_text("🔥 Official X: https://x.com/FLICKABICFLIK")
+        await update.message.reply_text("🔥 X: https://x.com/FLICKABICFLIK")
     if "website" in text or "site" in text:
-        await update.message.reply_text("🔥 Official Website: https://flickabic.com")
+        await update.message.reply_text("🔥 Website: https://flickabic.com")
+
+# ====================== COMMANDS ======================
+async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.message.from_user):
+        await update.message.reply_text("Admin only 🔥")
+        return
+    global current_raid
+    if current_raid:
+        await update.message.reply_text("Raid already active!")
+        return
+    current_raid = {"participants": []}
+    save_data()
+    context.job_queue.run_once(auto_end_raid, raid_duration_minutes * 60, chat_id=update.message.chat_id, name="raid_end")
+    await update.message.reply_text(f"🚨 **RAID STARTED!** 🚨\nDuration: {raid_duration_minutes} min\n`/joinraid` to join!")
+
+async def endraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.message.from_user):
+        await update.message.reply_text("Admin only 🔥")
+        return
+    global current_raid
+    if not current_raid:
+        await update.message.reply_text("No active raid.")
+        return
+    await auto_end_raid(context)
+
+async def auto_end_raid(context: ContextTypes.DEFAULT_TYPE):
+    global current_raid
+    if not current_raid:
+        return
+    participants = current_raid.get("participants", [])
+    msg = f"🏁 **RAID ENDED** 🏁\nTotal raiders: {len(participants)}\nGreat job! $FLIK to the moon!"
+    await context.bot.send_message(chat_id=context.job.chat_id, text=msg)
+    current_raid = None
+    save_data()
+
+async def joinraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global current_raid
+    if not current_raid:
+        await update.message.reply_text("No active raid.")
+        return
+    user = update.message.from_user.username
+    if user and user not in current_raid.get("participants", []):
+        current_raid.setdefault("participants", []).append(user)
+        points[user] = points.get(user, 0) + 10
+        save_data()
+        await update.message.reply_text(f"🔥 @{user} joined! +10 points")
+
+async def raidstatus(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global current_raid
+    if not current_raid:
+        await update.message.reply_text("No active raid.")
+        return
+    await update.message.reply_text(f"🚨 RAID STATUS\nRaiders: {len(current_raid.get('participants', []))}")
+
+async def setraidtime(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.message.from_user):
+        await update.message.reply_text("Admin only 🔥")
+        return
+    try:
+        global raid_duration_minutes
+        raid_duration_minutes = int(context.args[0])
+        save_data()
+        await update.message.reply_text(f"✅ Raid duration set to **{raid_duration_minutes} minutes**")
+    except:
+        await update.message.reply_text("Usage: /setraidtime <minutes>")
+
+async def createpoll(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.message.from_user):
+        await update.message.reply_text("Admin only!")
+        return
+    question = " ".join(context.args) or "Community vote?"
+    await update.message.reply_poll(question=question, options=["Yes 🔥", "No", "To the Moon 🌕"], is_anonymous=False)
+
+async def my_referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user.username
+    if not user:
+        await update.message.reply_text("Set username first!")
+        return
+    bot_info = await context.bot.get_me()
+    link = f"https://t.me/{bot_info.username}?start={user}"
+    await update.message.reply_text(f"🔥 **Your Referral Link**\n🔗 {link}")
 
 def main():
     app = Application.builder().token(TOKEN).build()
+
     app.add_handler(ChatMemberHandler(welcome, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — @Flik AI MODE WITH MEME SUPPORT")
+    # All commands
+    app.add_handler(CommandHandler("startraid", startraid))
+    app.add_handler(CommandHandler("endraid", endraid))
+    app.add_handler(CommandHandler("joinraid", joinraid))
+    app.add_handler(CommandHandler("raidstatus", raidstatus))
+    app.add_handler(CommandHandler("setraidtime", setraidtime))
+    app.add_handler(CommandHandler("createpoll", createpoll))
+    app.add_handler(CommandHandler("myreferral", my_referral))
+
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — COMPLETE & ANTI-SPAM FIXED")
     app.run_polling()
 
 if __name__ == '__main__':
