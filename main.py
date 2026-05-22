@@ -74,7 +74,6 @@ def is_admin(user):
     username_lower = user.username.lower()
     return any(admin.lower() == username_lower for admin in ADMINS)
 
-# ANTI-SPAM
 async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or is_admin(update.message.from_user):
         return False
@@ -110,7 +109,6 @@ async def get_grok_response(query: str, username: str):
             return f"⛔ Daily @Flik limit reached ({DAILY_GROK_LIMIT} messages). Try again tomorrow!"
         grok_usage[username][today] += 1
         save_data()
-
     if not XAI_API_KEY:
         return "🔥 Flik is here! Ask me anything."
     try:
@@ -180,7 +178,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text(f"🌟 Daily login! Streak: {streak} (no points for admins)")
 
-    # @Flik AI — supports @flik and @FLICKABICBot popup
+    # @Flik AI — supports both @flik and @FLICKABICBot popup
     bot_info = await context.bot.get_me()
     bot_mention = "@" + bot_info.username.lower()
     if bot_mention in original.lower() or "@flik" in text or "@Flik" in original:
@@ -235,14 +233,14 @@ async def active_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE)
         msg += "No weekly activity yet.\n"
     await update.message.reply_text(msg)
 
-# ====================== RAID SYSTEM ======================
+# Raid system
 async def startraid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.message.from_user):
         await update.message.reply_text("Admin only 🔥")
         return
     global current_raid
     if current_raid:
-        await update.message.reply_text("Raid already active! Use /resetraid to clear.")
+        await update.message.reply_text("Raid already active! Use /resetraid first.")
         return
     current_raid = {"participants": []}
     save_data()
@@ -300,8 +298,37 @@ async def raidstatus(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     await update.message.reply_text(f"🚨 RAID STATUS\nRaiders: {len(current_raid.get('participants', []))}")
 
-# Other commands (setraidtime, createpoll, myreferral, active_leaderboard, myusername) are included in the full version
-# (For brevity in this response, they are the same as in previous complete codes)
+async def setraidtime(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.message.from_user):
+        await update.message.reply_text("Admin only 🔥")
+        return
+    try:
+        global raid_duration_minutes
+        raid_duration_minutes = int(context.args[0])
+        save_data()
+        await update.message.reply_text(f"✅ Raid duration set to **{raid_duration_minutes} minutes**")
+    except:
+        await update.message.reply_text("Usage: /setraidtime <minutes>")
+
+async def createpoll(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.message.from_user):
+        await update.message.reply_text("Admin only!")
+        return
+    question = " ".join(context.args) or "Community vote?"
+    await update.message.reply_poll(question=question, options=["Yes 🔥", "No", "To the Moon 🌕"], is_anonymous=False)
+
+async def my_referral(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user.username
+    if not user:
+        await update.message.reply_text("Set username first!")
+        return
+    bot_info = await context.bot.get_me()
+    link = f"https://t.me/{bot_info.username}?start={user}"
+    await update.message.reply_text(f"🔥 **Your Referral Link**\n🔗 {link}")
+
+async def myusername(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    await update.message.reply_text(f"Bot sees your username as: **@{user.username}**\nADMINS list: {ADMINS}")
 
 def main():
     app = Application.builder().token(TOKEN).build()
@@ -323,7 +350,7 @@ def main():
     app.add_handler(CommandHandler("leaderboard", active_leaderboard))
     app.add_handler(CommandHandler("myusername", myusername))
 
-    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — /resetraid ADDED")
+    print("🤖 ULTIMATE FLIK BOT IS LIVE 🔥 — FULL VERSION RESTORED")
     app.run_polling()
 
 if __name__ == '__main__':
