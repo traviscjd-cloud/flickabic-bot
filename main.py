@@ -8,7 +8,6 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 TOKEN = os.getenv('BOT_TOKEN')
 XAI_API_KEY = os.getenv('XAI_API_KEY')
 
-DAILY_GROK_LIMIT = 15
 ADMINS = ["FLICKABICFLIK", "FLICKABIC", "flickabic"]
 
 # Change these when ready
@@ -51,12 +50,7 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return False
 
 async def get_grok_response(query: str, username: str):
-    if is_admin(type('obj', (object,), {'username': username})()):
-        pass
-    else:
-        today = str(date.today())
-        # simple daily limit
-        pass  # Grok call works as before
+    # Daily limit REMOVED — unlimited Grok AI for everyone
     if not XAI_API_KEY:
         return "🔥 Flik is here! Ask me anything."
     try:
@@ -83,6 +77,26 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if query.data == "verify_human":
         await query.edit_message_text("✅ **Verified!** Welcome to the $FLIK community 🔥")
 
+async def show_help_menu(update: Update):
+    menu_text = (
+        "🔥 **FLIK BOT MENU — What I Can Do**\n\n"
+        "📌 **@flik** + any question → Grok AI answers (smart replies)\n"
+        "🔗 **referral** → Get your personal referral link\n"
+        "🔥 **flik** → Energy reply (LFG)\n"
+        "🌕 **moon** → Energy reply ($FLIK on the way)\n"
+        "🚀 **raid** → Raid hype message\n"
+        "🐦 **x** or **twitter** → Official X link\n"
+        "📱 **tg** or **telegram** → Group link\n"
+        "🔢 **ca** → Contract address (TBA for now)\n"
+        "📖 **narrative** → Send the big $FLIK story image\n"
+        "🔥 **mascot** → Send the lighter mascot image\n"
+        "🌐 **website** or **site** → Official website link\n"
+        "📜 **rules** → Send the group rules image\n\n"
+        "Type any of these words anytime — I respond instantly!\n"
+        "$FLIK ARMY TO THE MOON 🔥"
+    )
+    await update.message.reply_text(menu_text)
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
         return
@@ -93,7 +107,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lower = text.lower()
     user = update.message.from_user
     username = user.username or "unknown"
-    chat_id = update.message.chat_id
 
     # Track activity for hourly shoutout
     today_str = str(date.today())
@@ -112,6 +125,27 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(response)
         else:
             await update.message.reply_text("🔥 What's on your mind? Ask me anything.")
+        return
+
+    # MENU
+    if "menu" in lower or "what can you do" in lower:
+        await show_help_menu(update)
+        return
+
+    # REFERRAL
+    if "referral" in lower:
+        bot_info = await context.bot.get_me()
+        link = f"https://t.me/{bot_info.username}?start={username}"
+        await update.message.reply_text(
+            f"🔥 **Your Personal Referral Link**\n\n🔗 {link}\n\n"
+            f"Share this link with friends!\n"
+            f"When they join using your link you both get rewards in the $FLIK Army 🔥"
+        )
+        return
+
+    # RAID HYPE
+    if "raid" in lower:
+        await update.message.reply_text("🔥 RAID TIME! $FLIK ARMY — LET'S LIGHT THE TIMELINE ON FIRE! DROP THE TWEET, JOIN THE RAID, TO THE MOON! 🚀")
         return
 
     # Keyword responses
@@ -164,12 +198,6 @@ async def hourly_shoutout(context: ContextTypes.DEFAULT_TYPE):
         text=f"🏆 **HOURLY SHOUTOUT!**\n\n@{top_user} is the most active member right now! 🔥 Keep the energy going $FLIK Army!"
     )
 
-async def welcome_back(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Detect when user rejoins
-    if update.message and update.message.new_chat_members:
-        for member in update.message.new_chat_members:
-            await update.message.reply_text(f"🔥 Welcome back @{member.username or member.first_name}! The $FLIK Army is stronger with you 🔥")
-
 def main():
     app = Application.builder().token(TOKEN).build()
 
@@ -180,7 +208,7 @@ def main():
     # Hourly shoutout job (every 3600 seconds = 1 hour)
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 SIMPLIFIED FLIK BOT IS LIVE 🔥 — @flik + all keyword replies")
+    print("🤖 SIMPLIFIED FLIK BOT IS LIVE 🔥 — UNLIMITED GROK AI + FULL MENU")
     app.run_polling()
 
 if __name__ == '__main__':
