@@ -10,9 +10,9 @@ XAI_API_KEY = os.getenv('XAI_API_KEY')
 
 ADMINS = ["FLICKABICFLIK", "FLICKABIC", "flickabic"]
 
-# Change these when ready
+# Updated referral link
+TELEGRAM_GROUP_LINK = "https://t.me/flickabiclounge"
 X_LINK = "https://x.com/FLICKABICFLIK"
-TELEGRAM_GROUP_LINK = "https://t.me/yourgroup"   # ← YOUR ACTUAL GROUP LINK
 WEBSITE_LINK = "https://flickabic.com"
 CA_TEXT = "TBA"
 
@@ -50,7 +50,6 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return False
 
 async def get_grok_response(query: str, username: str):
-    # Unlimited Grok AI — no daily limit, no chat history
     if not XAI_API_KEY:
         return "🔥 Flik is here! Ask me anything."
     try:
@@ -132,14 +131,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_help_menu(update)
         return
 
-    # REFERRAL (leads to group)
+    # REFERRAL — NOW POINTS TO YOUR GROUP + SHOWS WHO REFERRED
     if "referral" in lower:
-        bot_info = await context.bot.get_me()
-        link = f"https://t.me/{bot_info.username}?start={username}"
         await update.message.reply_text(
-            f"🔥 **Your Personal Referral Link**\n\n"
+            f"🔥 **Your Personal Referral Link** (from @{username})\n\n"
             f"🔗 {TELEGRAM_GROUP_LINK}\n\n"
-            f"Referred by @{username}\n\n"
             f"Share this link with friends!\n"
             f"When they join using your link you both get rewards in the $FLIK Army 🔥"
         )
@@ -225,7 +221,7 @@ def main():
 
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — FAST VERSION (NO CHAT HISTORY)")
+    print("🤖 FLIK BOT IS LIVE 🔥 — REFERRAL NOW POINTS TO GROUP")
     app.run_polling()
 
 if __name__ == '__main__':
