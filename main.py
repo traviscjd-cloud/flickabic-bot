@@ -12,15 +12,20 @@ ADMINS = ["FLICKABICFLIK", "FLICKABIC", "flickabic"]
 
 # Change these when ready
 X_LINK = "https://x.com/FLICKABICFLIK"
-TELEGRAM_GROUP_LINK = "https://t.me/yourgroup"   # ← change this
+TELEGRAM_GROUP_LINK = "https://t.me/yourgroup"   # ← MAKE SURE THIS IS YOUR ACTUAL GROUP LINK
 WEBSITE_LINK = "https://flickabic.com"
-CA_TEXT = "TBA"   # ← replace with actual CA when launched
+CA_TEXT = "TBA"
 
-# Persistent data for hourly active user
-daily_activity = {}
+# Chat history (last 20 messages per group)
+chat_history = {}
 
 def load_data():
-    global daily_activity
+    global chat_history, daily_activity
+    try:
+        with open('chat_history.json', 'r') as f:
+            chat_history = json.load(f)
+    except:
+        pass
     try:
         with open('daily_activity.json', 'r') as f:
             daily_activity.update(json.load(f))
@@ -28,6 +33,8 @@ def load_data():
         pass
 
 def save_data():
+    with open('chat_history.json', 'w') as f:
+        json.dump(chat_history, f, indent=2)
     with open('daily_activity.json', 'w') as f:
         json.dump(daily_activity, f, indent=2)
 
@@ -49,15 +56,23 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return True
     return False
 
-async def get_grok_response(query: str, username: str):
-    # Unlimited Grok AI (no daily limit)
+async def get_grok_response(query: str, username: str, chat_id: int):
+    history_str = ""
+    if chat_id in chat_history and chat_history[chat_id]:
+        recent = chat_history[chat_id][-20:]
+        history_str = "\n\nRecent chat history:\n" + "\n".join([f"@{msg['username']}: {msg['text']}" for msg in recent])
+
     if not XAI_API_KEY:
         return "🔥 Flik is here! Ask me anything."
     try:
+        messages = [
+            {"role": "system", "content": "You are Flik — savage, hype, funny, wise leader of $FLIK. You know the group vibe from the chat history."},
+            {"role": "user", "content": f"Recent context:{history_str}\n\n@{username} asks: {query}"}
+        ]
         r = requests.post(
             "https://api.x.ai/v1/chat/completions",
             headers={"Authorization": f"Bearer {XAI_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "grok-4", "messages": [{"role": "system", "content": "You are Flik — savage, hype, funny, wise leader of $FLIK."}, {"role": "user", "content": f"@{username}: {query}"}]}
+            json={"model": "grok-4", "messages": messages}
         )
         return r.json()['choices'][0]['message']['content']
     except:
@@ -80,12 +95,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_help_menu(update: Update):
     menu_text = (
         "🔥 **FLIK BOT MENU — What I Can Do**\n\n"
-        "📌 **@flik** + any question → Grok AI answers (smart replies)\n"
-        "🔗 **referral** → Get your personal referral link\n"
+        "📌 **@flik** + any question → Grok AI (reads recent chat for vibe checks)\n"
+        "🔗 **referral** → Get your personal referral link to the group\n"
         "🔥 **flik** → Energy reply (LFG)\n"
         "🌕 **moon** → Energy reply ($FLIK on the way)\n"
         "🚀 **raid** → Raid hype message\n"
-        "👥 **everyone** or **@everyone** → Notify the entire group\n"
         "🐦 **x** or **twitter** → Official X link\n"
         "📱 **tg** or **telegram** → Group link\n"
         "🔢 **ca** → Contract address (TBA for now)\n"
@@ -108,21 +122,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lower = text.lower()
     user = update.message.from_user
     username = user.username or "unknown"
+    chat_id = str(update.message.chat_id)
 
-    # Track activity for hourly shoutout
-    today_str = str(date.today())
-    if username not in daily_activity:
-        daily_activity[username] = {}
-    daily_activity[username][today_str] = daily_activity[username].get(today_str, 0) + 1
+    # Save message to chat history
+    if chat_id not in chat_history:
+        chat_history[chat_id] = []
+    chat_history[chat_id].append({"username": username, "text": text})
+    if len(chat_history[chat_id]) > 20:
+        chat_history[chat_id] = chat_history[chat_id][-20:]
     save_data()
 
-    # @flik Grok AI
+    # @flik Grok AI (with chat history)
     bot_info = await context.bot.get_me()
     bot_mention = "@" + bot_info.username.lower()
     if bot_mention in lower or "@flik" in lower or "@Flik" in text:
         query_text = text.replace(bot_mention, "").replace("@Flik", "").replace("@flik", "").strip()
         if query_text:
-            response = await get_grok_response(query_text, username)
+            response = await get_grok_response(query_text, username, chat_id)
             await update.message.reply_text(response)
         else:
             await update.message.reply_text("🔥 What's on your mind? Ask me anything.")
@@ -133,25 +149,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_help_menu(update)
         return
 
-    # REFERRAL
+    # REFERRAL — NOW LEADS TO THE GROUP (with your username attached)
     if "referral" in lower:
-        bot_info = await context.bot.get_me()
-        link = f"https://t.me/{bot_info.username}?start={username}"
-        await update.message.reply_text(
-            f"🔥 **Your Personal Referral Link**\n\n🔗 {link}\n\n"
+        referral_message = (
+            f"🔥 **Your Personal Referral Link**\n\n"
+            f"🔗 {TELEGRAM_GROUP_LINK}\n\n"
+            f"Referred by @{username}\n\n"
             f"Share this link with friends!\n"
             f"When they join using your link you both get rewards in the $FLIK Army 🔥"
         )
+        await update.message.reply_text(referral_message)
         return
 
     # RAID HYPE
     if "raid" in lower:
         await update.message.reply_text("🔥 RAID TIME! $FLIK ARMY — LET'S LIGHT THE TIMELINE ON FIRE! DROP THE TWEET, JOIN THE RAID, TO THE MOON! 🚀")
-        return
-
-    # @EVERYONE NOTIFICATION (NEW)
-    if "@everyone" in lower or "everyone" in lower:
-        await update.message.reply_text("@everyone 🔥 $FLIK ARMY — THE ENERGY IS HIGH! WHAT'S THE MOVE? LET'S LIGHT IT UP TO THE MOON! 🚀")
         return
 
     # Keyword responses
@@ -211,10 +223,9 @@ def main():
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # Hourly shoutout job (every 3600 seconds = 1 hour)
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 SIMPLIFIED FLIK BOT IS LIVE 🔥 — UNLIMITED GROK AI + @EVERYONE PING + FULL MENU")
+    print("🤖 FLIK BOT IS LIVE 🔥 — REFERRAL NOW LEADS TO GROUP")
     app.run_polling()
 
 if __name__ == '__main__':
