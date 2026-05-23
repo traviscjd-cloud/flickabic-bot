@@ -50,7 +50,7 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return False
 
 async def get_grok_response(query: str, username: str):
-    # Daily limit REMOVED — unlimited Grok AI for everyone
+    # Unlimited Grok AI (no daily limit)
     if not XAI_API_KEY:
         return "🔥 Flik is here! Ask me anything."
     try:
@@ -85,6 +85,7 @@ async def show_help_menu(update: Update):
         "🔥 **flik** → Energy reply (LFG)\n"
         "🌕 **moon** → Energy reply ($FLIK on the way)\n"
         "🚀 **raid** → Raid hype message\n"
+        "👥 **everyone** or **@everyone** → Notify the entire group\n"
         "🐦 **x** or **twitter** → Official X link\n"
         "📱 **tg** or **telegram** → Group link\n"
         "🔢 **ca** → Contract address (TBA for now)\n"
@@ -148,6 +149,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🔥 RAID TIME! $FLIK ARMY — LET'S LIGHT THE TIMELINE ON FIRE! DROP THE TWEET, JOIN THE RAID, TO THE MOON! 🚀")
         return
 
+    # @EVERYONE NOTIFICATION (NEW)
+    if "@everyone" in lower or "everyone" in lower:
+        await update.message.reply_text("@everyone 🔥 $FLIK ARMY — THE ENERGY IS HIGH! WHAT'S THE MOVE? LET'S LIGHT IT UP TO THE MOON! 🚀")
+        return
+
     # Keyword responses
     if "flik" in lower:
         await update.message.reply_text("🔥 THAT'S THE ENERGY! LFG")
@@ -208,7 +214,7 @@ def main():
     # Hourly shoutout job (every 3600 seconds = 1 hour)
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 SIMPLIFIED FLIK BOT IS LIVE 🔥 — UNLIMITED GROK AI + FULL MENU")
+    print("🤖 SIMPLIFIED FLIK BOT IS LIVE 🔥 — UNLIMITED GROK AI + @EVERYONE PING + FULL MENU")
     app.run_polling()
 
 if __name__ == '__main__':
