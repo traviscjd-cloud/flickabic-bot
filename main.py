@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import io
 from datetime import datetime, date
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes, ChatMemberHandler
@@ -19,6 +20,19 @@ CA_TEXT = "TBA"
 # Persistent data for hourly active user
 daily_activity = {}
 
+# Image cache (loaded once at startup)
+image_cache = {}
+
+def load_images():
+    """Load images once into memory for instant responses"""
+    for name in ['narrative.jpg', 'mascot.jpg', 'rules.jpg']:
+        try:
+            with open(name, 'rb') as f:
+                image_cache[name] = f.read()
+            print(f"✅ Loaded {name} into cache")
+        except Exception as e:
+            print(f"⚠️ Could not load {name}: {e}")
+
 def load_data():
     global daily_activity
     try:
@@ -32,6 +46,7 @@ def save_data():
         json.dump(daily_activity, f, indent=2)
 
 load_data()
+load_images()   # ← Images cached here
 
 def is_admin(user):
     if not user or not user.username:
@@ -62,7 +77,7 @@ async def get_grok_response(query: str, username: str):
     except:
         return "🔥 Flik is cooking... Try again soon!"
 
-# SIMPLE FIRE WELCOME MESSAGE (no button, no verification)
+# SIMPLE FIRE WELCOME MESSAGE
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         username = member.username or member.first_name
@@ -70,8 +85,7 @@ async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🔥 **WELCOME TO THE $FLIK ARMY** @{username}!\n\n"
             "They said the timeline was dead.\n"
             "We lit the Bic.\n\n"
-            "Light it. Send it. Flick to the moon! 🚀\n\n"
-            "$FLIK is not just a coin — it’s a movement."
+            "Light it. Send it. Flick to the moon! 🚀"
         )
         await update.message.reply_text(welcome_text)
 
@@ -131,7 +145,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(response)
         return
 
-    # Keyword responses
+    # CACHED IMAGE RESPONSES (instant after first load)
+    if "narrative" in lower:
+        if 'narrative.jpg' in image_cache:
+            await update.message.reply_photo(image_cache['narrative.jpg'], caption="🔥 $FLIK Narrative")
+        else:
+            await update.message.reply_text("🔥 $FLIK Narrative image not found yet.")
+        return
+
+    if "mascot" in lower:
+        if 'mascot.jpg' in image_cache:
+            await update.message.reply_photo(image_cache['mascot.jpg'], caption="🔥 $FLIK Mascot")
+        else:
+            await update.message.reply_text("🔥 $FLIK Mascot image not found yet.")
+        return
+
+    if "rules" in lower:
+        if 'rules.jpg' in image_cache:
+            await update.message.reply_photo(image_cache['rules.jpg'], caption="📜 Group Rules")
+        else:
+            await update.message.reply_text("📜 Group Rules image not found yet.")
+        return
+
+    # Other keywords
     if "flik" in lower:
         await update.message.reply_text("🔥 THAT'S THE ENERGY! LFG")
         return
@@ -152,50 +188,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"🔥 CA: {CA_TEXT}")
         return
 
-    if "narrative" in lower:
-        try:
-            await update.message.reply_photo(open('narrative.jpg', 'rb'), caption="🔥 $FLIK Narrative")
-        except:
-            await update.message.reply_text("🔥 $FLIK Narrative image not found yet.")
-        return
-
-    if "mascot" in lower:
-        try:
-            await update.message.reply_photo(open('mascot.jpg', 'rb'), caption="🔥 $FLIK Mascot")
-        except:
-            await update.message.reply_text("🔥 $FLIK Mascot image not found yet.")
-        return
-
     if "website" in lower or "site" in lower:
         await update.message.reply_text(f"🔥 Official Website: {WEBSITE_LINK}")
         return
-
-    if "rules" in lower:
-        try:
-            await update.message.reply_photo(open('rules.jpg', 'rb'), caption="📜 Group Rules")
-        except:
-            await update.message.reply_text("📜 Group Rules image not found yet.")
-        return
-
-async def hourly_shoutout(context: ContextTypes.DEFAULT_TYPE):
-    if not daily_activity:
-        return
-    today_str = str(date.today())
-    today_counts = {u: counts.get(today_str, 0) for u, counts in daily_activity.items() if today_str in counts}
-    if not today_counts:
-        return
-    top_user = max(today_counts, key=today_counts.get)
-    await context.bot.send_message(
-        chat_id=context.job.chat_id,
-        text=f"🏆 **HOURLY SHOUTOUT!**\n\n@{top_user} is the most active member right now! 🔥 Keep the energy going $FLIK Army!"
-    )
 
 async def show_help_menu(update: Update):
     menu_text = (
         "🔥 **FLIK BOT MENU — What I Can Do**\n\n"
         "📌 **@flik** + any question → Grok AI\n"
         "🔗 **referral** → Get your personal referral link to the group\n"
-        "🔥 **flik** → Energy reply (LFG!)\n"
+        "🔥 **flik** → Energy reply (LFG)\n"
         "🌕 **moon** → Energy reply ($FLIK on the way)\n"
         "🚀 **raid** → Raid hype message\n"
         "🐦 **x** or **twitter** → Official X link\n"
@@ -213,13 +215,10 @@ async def show_help_menu(update: Update):
 def main():
     app = Application.builder().token(TOKEN).build()
 
-    # Simple welcome (no button, no verification)
     app.add_handler(ChatMemberHandler(welcome, ChatMemberHandler.NEW_CHAT_MEMBERS))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
-
-    print("🤖 FLIK BOT IS LIVE 🔥 — SIMPLE WELCOME MESSAGE ONLY")
+    print("🤖 FLIK BOT IS LIVE 🔥 — IMAGE CACHING ENABLED + SIMPLE WELCOME")
     app.run_polling()
 
 if __name__ == '__main__':
