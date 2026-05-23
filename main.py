@@ -18,6 +18,7 @@ CA_TEXT = "TBA"
 
 # Chat history (last 20 messages per group)
 chat_history = {}
+daily_activity = {}
 
 def load_data():
     global chat_history, daily_activity
@@ -25,7 +26,7 @@ def load_data():
         with open('chat_history.json', 'r') as f:
             chat_history = json.load(f)
     except:
-        pass
+        chat_history = {}
     try:
         with open('daily_activity.json', 'r') as f:
             daily_activity.update(json.load(f))
@@ -56,7 +57,7 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return True
     return False
 
-async def get_grok_response(query: str, username: str, chat_id: int):
+async def get_grok_response(query: str, username: str, chat_id: str):
     history_str = ""
     if chat_id in chat_history and chat_history[chat_id]:
         recent = chat_history[chat_id][-20:]
@@ -167,7 +168,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🔥 RAID TIME! $FLIK ARMY — LET'S LIGHT THE TIMELINE ON FIRE! DROP THE TWEET, JOIN THE RAID, TO THE MOON! 🚀")
         return
 
-    # GREETINGS → Grok AI (NEW)
+    # GREETINGS → Grok AI
     greetings = ["hello", "hey", "hi", "what’s up", "whats up", "anyone here"]
     if any(g in lower for g in greetings):
         response = await get_grok_response(text, username, chat_id)
@@ -196,11 +197,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if "narrative" in lower:
-        await update.message.reply_photo(open('narrative.jpg', 'rb'), caption="🔥 $FLIK Narrative")
+        try:
+            await update.message.reply_photo(open('narrative.jpg', 'rb'), caption="🔥 $FLIK Narrative")
+        except:
+            await update.message.reply_text("🔥 $FLIK Narrative image not found yet.")
         return
 
     if "mascot" in lower:
-        await update.message.reply_photo(open('mascot.jpg', 'rb'), caption="🔥 $FLIK Mascot")
+        try:
+            await update.message.reply_photo(open('mascot.jpg', 'rb'), caption="🔥 $FLIK Mascot")
+        except:
+            await update.message.reply_text("🔥 $FLIK Mascot image not found yet.")
         return
 
     if "website" in lower or "site" in lower:
@@ -208,7 +215,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if "rules" in lower:
-        await update.message.reply_photo(open('rules.jpg', 'rb'), caption="📜 Group Rules")
+        try:
+            await update.message.reply_photo(open('rules.jpg', 'rb'), caption="📜 Group Rules")
+        except:
+            await update.message.reply_text("📜 Group Rules image not found yet.")
         return
 
 async def hourly_shoutout(context: ContextTypes.DEFAULT_TYPE):
@@ -233,7 +243,7 @@ def main():
 
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — GREETINGS + CHAT HISTORY + UNLIMITED GROK")
+    print("🤖 FLIK BOT IS LIVE 🔥 — CHAT HISTORY + ALL KEYWORDS FIXED")
     app.run_polling()
 
 if __name__ == '__main__':
