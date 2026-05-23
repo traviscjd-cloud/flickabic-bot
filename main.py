@@ -62,6 +62,7 @@ async def get_grok_response(query: str, username: str):
     except:
         return "🔥 Flik is cooking... Try again soon!"
 
+# FIXED WELCOME + VERIFICATION
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         keyboard = [[InlineKeyboardButton("✅ I'm not a bot", callback_data="verify_human")]]
@@ -131,7 +132,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_help_menu(update)
         return
 
-    # REFERRAL — now points to group and removed rewards mention
+    # REFERRAL
     if "referral" in lower:
         await update.message.reply_text(
             f"🔥 **Your Personal Referral Link** (from @{username})\n\n"
@@ -214,13 +215,14 @@ async def hourly_shoutout(context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
 
-    app.add_handler(ChatMemberHandler(welcome, ChatMemberHandler.MY_CHAT_MEMBER))
+    # FIXED WELCOME HANDLER
+    app.add_handler(ChatMemberHandler(welcome, ChatMemberHandler.NEW_CHAT_MEMBERS))
     app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — REFERRAL SIMPLIFIED (NO REWARDS)")
+    print("🤖 FLIK BOT IS LIVE 🔥 — WELCOME + VERIFICATION FIXED")
     app.run_polling()
 
 if __name__ == '__main__':
