@@ -2,8 +2,8 @@ import os
 import json
 import requests
 from datetime import datetime, date
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, ChatMemberHandler, CallbackQueryHandler
+from telegram import Update
+from telegram.ext import Application, MessageHandler, filters, ContextTypes, ChatMemberHandler
 
 TOKEN = os.getenv('BOT_TOKEN')
 XAI_API_KEY = os.getenv('XAI_API_KEY')
@@ -62,40 +62,18 @@ async def get_grok_response(query: str, username: str):
     except:
         return "🔥 Flik is cooking... Try again soon!"
 
-# FIXED WELCOME + VERIFICATION
+# SIMPLE FIRE WELCOME MESSAGE (no button, no verification)
 async def welcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
-        keyboard = [[InlineKeyboardButton("✅ I'm not a bot", callback_data="verify_human")]]
-        await update.message.reply_text(
-            f"🔥 Welcome @{member.username or member.first_name} to the $FLIK Army!\n\nClick the button below to verify you're not a bot.",
-            reply_markup=InlineKeyboardMarkup(keyboard)
+        username = member.username or member.first_name
+        welcome_text = (
+            f"🔥 **WELCOME TO THE $FLIK ARMY** @{username}!\n\n"
+            "They said the timeline was dead.\n"
+            "We lit the Bic.\n\n"
+            "Light it. Send it. Flick to the moon! 🚀\n\n"
+            "$FLIK is not just a coin — it’s a movement."
         )
-
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if query.data == "verify_human":
-        await query.edit_message_text("✅ **Verified!** Welcome to the $FLIK community 🔥")
-
-async def show_help_menu(update: Update):
-    menu_text = (
-        "🔥 **FLIK BOT MENU — What I Can Do**\n\n"
-        "📌 **@flik** + any question → Grok AI\n"
-        "🔗 **referral** → Get your personal referral link to the group\n"
-        "🔥 **flik** → Energy reply (LFG)\n"
-        "🌕 **moon** → Energy reply ($FLIK on the way)\n"
-        "🚀 **raid** → Raid hype message\n"
-        "🐦 **x** or **twitter** → Official X link\n"
-        "📱 **tg** or **telegram** → Group link\n"
-        "🔢 **ca** → Contract address (TBA for now)\n"
-        "📖 **narrative** → Send the big $FLIK story image\n"
-        "🔥 **mascot** → Send the lighter mascot image\n"
-        "🌐 **website** or **site** → Official website link\n"
-        "📜 **rules** → Send the group rules image\n\n"
-        "Type any of these words anytime — I respond instantly!\n"
-        "$FLIK ARMY TO THE MOON 🔥"
-    )
-    await update.message.reply_text(menu_text)
+        await update.message.reply_text(welcome_text)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message or not update.message.text:
@@ -212,17 +190,36 @@ async def hourly_shoutout(context: ContextTypes.DEFAULT_TYPE):
         text=f"🏆 **HOURLY SHOUTOUT!**\n\n@{top_user} is the most active member right now! 🔥 Keep the energy going $FLIK Army!"
     )
 
+async def show_help_menu(update: Update):
+    menu_text = (
+        "🔥 **FLIK BOT MENU — What I Can Do**\n\n"
+        "📌 **@flik** + any question → Grok AI\n"
+        "🔗 **referral** → Get your personal referral link to the group\n"
+        "🔥 **flik** → Energy reply (LFG!)\n"
+        "🌕 **moon** → Energy reply ($FLIK on the way)\n"
+        "🚀 **raid** → Raid hype message\n"
+        "🐦 **x** or **twitter** → Official X link\n"
+        "📱 **tg** or **telegram** → Group link\n"
+        "🔢 **ca** → Contract address (TBA for now)\n"
+        "📖 **narrative** → Send the big $FLIK story image\n"
+        "🔥 **mascot** → Send the lighter mascot image\n"
+        "🌐 **website** or **site** → Official website link\n"
+        "📜 **rules** → Send the group rules image\n\n"
+        "Type any of these words anytime — I respond instantly!\n"
+        "$FLIK ARMY TO THE MOON 🔥"
+    )
+    await update.message.reply_text(menu_text)
+
 def main():
     app = Application.builder().token(TOKEN).build()
 
-    # FIXED WELCOME HANDLER
+    # Simple welcome (no button, no verification)
     app.add_handler(ChatMemberHandler(welcome, ChatMemberHandler.NEW_CHAT_MEMBERS))
-    app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — WELCOME + VERIFICATION FIXED")
+    print("🤖 FLIK BOT IS LIVE 🔥 — SIMPLE WELCOME MESSAGE ONLY")
     app.run_polling()
 
 if __name__ == '__main__':
