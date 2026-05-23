@@ -10,9 +10,9 @@ XAI_API_KEY = os.getenv('XAI_API_KEY')
 
 ADMINS = ["FLICKABICFLIK", "FLICKABIC", "flickabic"]
 
-# Updated referral link
-TELEGRAM_GROUP_LINK = "https://t.me/flickabiclounge"
+# Change these when ready
 X_LINK = "https://x.com/FLICKABICFLIK"
+TELEGRAM_GROUP_LINK = "https://t.me/flickabiclounge"
 WEBSITE_LINK = "https://flickabic.com"
 CA_TEXT = "TBA"
 
@@ -131,13 +131,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_help_menu(update)
         return
 
-    # REFERRAL — NOW POINTS TO YOUR GROUP + SHOWS WHO REFERRED
+    # REFERRAL — now points to group and removed rewards mention
     if "referral" in lower:
         await update.message.reply_text(
             f"🔥 **Your Personal Referral Link** (from @{username})\n\n"
             f"🔗 {TELEGRAM_GROUP_LINK}\n\n"
-            f"Share this link with friends!\n"
-            f"When they join using your link you both get rewards in the $FLIK Army 🔥"
+            f"Share this link with friends!"
         )
         return
 
@@ -221,7 +220,7 @@ def main():
 
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — REFERRAL NOW POINTS TO GROUP")
+    print("🤖 FLIK BOT IS LIVE 🔥 — REFERRAL SIMPLIFIED (NO REWARDS)")
     app.run_polling()
 
 if __name__ == '__main__':
