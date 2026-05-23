@@ -12,7 +12,7 @@ ADMINS = ["FLICKABICFLIK", "FLICKABIC", "flickabic"]
 
 # Change these when ready
 X_LINK = "https://x.com/FLICKABICFLIK"
-TELEGRAM_GROUP_LINK = "https://t.me/yourgroup"   # ← MAKE SURE THIS IS YOUR ACTUAL GROUP LINK
+TELEGRAM_GROUP_LINK = "https://t.me/yourgroup"   # ← YOUR ACTUAL GROUP LINK
 WEBSITE_LINK = "https://flickabic.com"
 CA_TEXT = "TBA"
 
@@ -149,21 +149,29 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_help_menu(update)
         return
 
-    # REFERRAL — NOW LEADS TO THE GROUP (with your username attached)
+    # REFERRAL (leads to group)
     if "referral" in lower:
-        referral_message = (
+        bot_info = await context.bot.get_me()
+        link = f"https://t.me/{bot_info.username}?start={username}"
+        await update.message.reply_text(
             f"🔥 **Your Personal Referral Link**\n\n"
             f"🔗 {TELEGRAM_GROUP_LINK}\n\n"
             f"Referred by @{username}\n\n"
             f"Share this link with friends!\n"
             f"When they join using your link you both get rewards in the $FLIK Army 🔥"
         )
-        await update.message.reply_text(referral_message)
         return
 
     # RAID HYPE
     if "raid" in lower:
         await update.message.reply_text("🔥 RAID TIME! $FLIK ARMY — LET'S LIGHT THE TIMELINE ON FIRE! DROP THE TWEET, JOIN THE RAID, TO THE MOON! 🚀")
+        return
+
+    # GREETINGS → Grok AI (NEW)
+    greetings = ["hello", "hey", "hi", "what’s up", "whats up", "anyone here"]
+    if any(g in lower for g in greetings):
+        response = await get_grok_response(text, username, chat_id)
+        await update.message.reply_text(response)
         return
 
     # Keyword responses
@@ -225,7 +233,7 @@ def main():
 
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — REFERRAL NOW LEADS TO GROUP")
+    print("🤖 FLIK BOT IS LIVE 🔥 — GREETINGS + CHAT HISTORY + UNLIMITED GROK")
     app.run_polling()
 
 if __name__ == '__main__':
