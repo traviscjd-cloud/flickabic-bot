@@ -16,17 +16,11 @@ TELEGRAM_GROUP_LINK = "https://t.me/yourgroup"   # ← YOUR ACTUAL GROUP LINK
 WEBSITE_LINK = "https://flickabic.com"
 CA_TEXT = "TBA"
 
-# Chat history (last 20 messages per group)
-chat_history = {}
+# Persistent data for hourly active user
 daily_activity = {}
 
 def load_data():
-    global chat_history, daily_activity
-    try:
-        with open('chat_history.json', 'r') as f:
-            chat_history = json.load(f)
-    except:
-        chat_history = {}
+    global daily_activity
     try:
         with open('daily_activity.json', 'r') as f:
             daily_activity.update(json.load(f))
@@ -34,8 +28,6 @@ def load_data():
         pass
 
 def save_data():
-    with open('chat_history.json', 'w') as f:
-        json.dump(chat_history, f, indent=2)
     with open('daily_activity.json', 'w') as f:
         json.dump(daily_activity, f, indent=2)
 
@@ -57,23 +49,15 @@ async def anti_spam(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return True
     return False
 
-async def get_grok_response(query: str, username: str, chat_id: str):
-    history_str = ""
-    if chat_id in chat_history and chat_history[chat_id]:
-        recent = chat_history[chat_id][-20:]
-        history_str = "\n\nRecent chat history:\n" + "\n".join([f"@{msg['username']}: {msg['text']}" for msg in recent])
-
+async def get_grok_response(query: str, username: str):
+    # Unlimited Grok AI — no daily limit, no chat history
     if not XAI_API_KEY:
         return "🔥 Flik is here! Ask me anything."
     try:
-        messages = [
-            {"role": "system", "content": "You are Flik — savage, hype, funny, wise leader of $FLIK. You know the group vibe from the chat history."},
-            {"role": "user", "content": f"Recent context:{history_str}\n\n@{username} asks: {query}"}
-        ]
         r = requests.post(
             "https://api.x.ai/v1/chat/completions",
             headers={"Authorization": f"Bearer {XAI_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "grok-4", "messages": messages}
+            json={"model": "grok-4", "messages": [{"role": "system", "content": "You are Flik — savage, hype, funny, wise leader of $FLIK."}, {"role": "user", "content": f"@{username}: {query}"}]}
         )
         return r.json()['choices'][0]['message']['content']
     except:
@@ -96,7 +80,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_help_menu(update: Update):
     menu_text = (
         "🔥 **FLIK BOT MENU — What I Can Do**\n\n"
-        "📌 **@flik** + any question → Grok AI (reads recent chat for vibe checks)\n"
+        "📌 **@flik** + any question → Grok AI\n"
         "🔗 **referral** → Get your personal referral link to the group\n"
         "🔥 **flik** → Energy reply (LFG)\n"
         "🌕 **moon** → Energy reply ($FLIK on the way)\n"
@@ -123,23 +107,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lower = text.lower()
     user = update.message.from_user
     username = user.username or "unknown"
-    chat_id = str(update.message.chat_id)
 
-    # Save message to chat history
-    if chat_id not in chat_history:
-        chat_history[chat_id] = []
-    chat_history[chat_id].append({"username": username, "text": text})
-    if len(chat_history[chat_id]) > 20:
-        chat_history[chat_id] = chat_history[chat_id][-20:]
+    # Track activity for hourly shoutout
+    today_str = str(date.today())
+    if username not in daily_activity:
+        daily_activity[username] = {}
+    daily_activity[username][today_str] = daily_activity[username].get(today_str, 0) + 1
     save_data()
 
-    # @flik Grok AI (with chat history)
+    # @flik Grok AI
     bot_info = await context.bot.get_me()
     bot_mention = "@" + bot_info.username.lower()
     if bot_mention in lower or "@flik" in lower or "@Flik" in text:
         query_text = text.replace(bot_mention, "").replace("@Flik", "").replace("@flik", "").strip()
         if query_text:
-            response = await get_grok_response(query_text, username, chat_id)
+            response = await get_grok_response(query_text, username)
             await update.message.reply_text(response)
         else:
             await update.message.reply_text("🔥 What's on your mind? Ask me anything.")
@@ -171,7 +153,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # GREETINGS → Grok AI
     greetings = ["hello", "hey", "hi", "what’s up", "whats up", "anyone here"]
     if any(g in lower for g in greetings):
-        response = await get_grok_response(text, username, chat_id)
+        response = await get_grok_response(text, username)
         await update.message.reply_text(response)
         return
 
@@ -243,7 +225,7 @@ def main():
 
     app.job_queue.run_repeating(hourly_shoutout, interval=3600, first=60)
 
-    print("🤖 FLIK BOT IS LIVE 🔥 — CHAT HISTORY + ALL KEYWORDS FIXED")
+    print("🤖 FLIK BOT IS LIVE 🔥 — FAST VERSION (NO CHAT HISTORY)")
     app.run_polling()
 
 if __name__ == '__main__':
