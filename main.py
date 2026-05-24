@@ -157,29 +157,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # RAID HYPE
-    if "raid" in lower:
-        await update.message.reply_text(
-            "🔥 RAID TIME! $FLIK ARMY — LET'S LIGHT THE TIMELINE ON FIRE! "
-            "DROP THE TWEET, JOIN THE RAID, TO THE MOON! 🚀"
-        )
-        return
-
-    # GREETINGS
-    greetings = ["hello", "hey", "hi", "what's up", "whats up", "anyone here"]
-    if any(g in lower for g in greetings):
-        await update.message.reply_text("🔥 Hey! The $FLIK Army is lit — what's the move today? LFG 🚀")
-        return
-
-    # Keyword responses
-    if "flik" in lower:
-        await update.message.reply_text("🔥 THAT'S THE ENERGY! LFG")
-        return
-
-    if "moon" in lower:
-        await update.message.reply_text("🔥 THAT'S THE ENERGY! $FLIK on the way")
-        return
-
     if "twitter" in lower or " x " in lower or lower == "x":
         await update.message.reply_text(f"🔥 Official X: {X_LINK}")
         return
@@ -225,9 +202,6 @@ async def show_help_menu(update: Update):
         "🔥 *FLIK BOT MENU — What I Can Do*\n\n"
         "📌 *@flik* \\+ any question → Grok AI\n"
         "🔗 *referral* → Get your personal referral link\n"
-        "🔥 *flik* → Energy reply \\(LFG\\)\n"
-        "🌕 *moon* → Energy reply \\($FLIK on the way\\)\n"
-        "🚀 *raid* → Raid hype message\n"
         "🐦 *x* or *twitter* → Official X link\n"
         "📱 *tg* or *telegram* → Group link\n"
         "🔢 *ca* → Contract address\n"
